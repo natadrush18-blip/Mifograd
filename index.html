@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>МифоГрад - Квест по КМВ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a472a, #2e5a3a);
+            min-height: 100vh;
+            color: #fff;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            letter-spacing: 4px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            background: linear-gradient(45deg, #ffd700, #ffb347);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+        
+        .screen {
+            display: none;
+        }
+        
+        .screen.active {
+            display: block;
+        }
+        
+        .card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .card h2 {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .card p {
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        
+        .btn-primary, .btn-secondary {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, #ffd700, #ffb347);
+            color: #1a472a;
+        }
+        
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        
+        .btn-primary:hover, .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .route-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .route-btn {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,215,0,0.5);
+            border-radius: 60px;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffd700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .route-btn.selected {
+            background: rgba(255,215,0,0.3);
+            border-color: #ffd700;
+            color: white;
+        }
+        
+        .route-btn:hover {
+            background: rgba(255,215,0,0.3);
+            transform: scale(1.02);
+        }
+        
+        #btn-main-ar {
+            background: linear-gradient(45deg, #8B4513, #4CAF50, #ffd700);
+            background-size: 200% 200%;
+            animation: gradientShift 3s ease infinite;
+            color: white;
+            border: none;
+            padding: 20px 30px;
+            border-radius: 60px;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin: 20px 0;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            transition: all 0.3s;
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        #btn-main-ar:hover {
+            transform: scale(1.02);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+        }
+        
+        .status-bar {
+            background: rgba(0,0,0,0.5);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        #location-status {
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .current-point-card {
+            background: rgba(255,255,255,0.15);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 5px solid #ffd700;
+        }
+        
+        .point-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffd700;
+            margin-bottom: 10px;
+        }
+        
+        .point-description {
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 10px;
+            opacity: 0.9;
+        }
+        
+        .point-coords {
+            font-size: 12px;
+            font-family: monospace;
+            background: rgba(0,0,0,0.3);
+            padding: 5px 10px;
+            border-radius: 8px;
+            display: inline-block;
+            margin-top: 5px;
+        }
+        
+        .distance-info {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .distance-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #ffd700;
+        }
+        
+        .progress-bar {
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            background: linear-gradient(90deg, #ffd700, #ffb347);
+            height: 100%;
+            width: 0%;
+            transition: width 0.5s;
+            border-radius: 10px;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        #camera-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #camera-preview {
+            width: 100%;
+            height: calc(100% - 120px);
+            object-fit: cover;
+            background: #000;
+        }
+        
+        .camera-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            padding: 20px;
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+        }
+        
+        .camera-controls button {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            min-width: 120px;
+        }
+        
+        #btn-take-photo {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        #btn-cancel {
+            background: #f44336;
+            color: white;
+        }
+        
+        .narzannik-card {
+            background: linear-gradient(135deg, #2e5a3a, #1a472a);
+            border-radius: 20px;
+            padding: 25px;
+            text-align: center;
+            margin: 20px;
+            animation: slideUp 0.5s ease;
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .narzannik-image {
+            width: 150px;
+            height: 150px;
+            object-fit: contain;
+            margin: 0 auto 20px;
+            border-radius: 20px;
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+        }
+        
+        .narzannik-emoji {
+            font-size: 80px;
+            margin-bottom: 15px;
+        }
+        
+        .narzannik-info {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: left;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 12px;
+            opacity: 0.6;
+        }
+        
+        @keyframes floatAR {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+        
+        .ar-character {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 150px;
+            height: 150px;
+            filter: drop-shadow(0 0 20px gold);
+            animation: floatAR 2s ease-in-out infinite;
+            cursor: pointer;
+            z-index: 10001;
+        }
+        
+        .ar-instruction {
+            position: absolute;
+            bottom: 150px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            font-size: 14px;
+            z-index: 10001;
+        }
+        
+        .hint {
+            background: rgba(255,193,7,0.2);
+            border-left: 3px solid #ffc107;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>МИФОГРАД</h1>
+            <p class="subtitle">Квест по достопримечательностям Кавказских Минеральных Вод</p>
+        </header>
+
+        <main id="app">
+            <div id="screen-welcome" class="screen active">
+                <div class="card">
+                    <h2>🏛️ Найди духов города</h2>
+                    <p>Каждая достопримечательность хранит своего духа-нарзанника. Наведи камеру, найди персонажа и пополняй коллекцию!</p>
+                    <div class="route-selector">
+                        <button class="route-btn" data-route="pyatigorsk">🏔️ Тропой Лермонтова (Пятигорск) — 6 точек</button>
+                        <button class="route-btn" data-route="kislovodsk">💎 Нарзанная Симфония (Кисловодск) — 5 точек</button>
+                        <button class="route-btn" data-route="kavkaz">🏞️ Легенды Кавказа (Ессентуки+Железноводск) — 5 точек</button>
+                    </div>
+                    <button id="btn-start-route" class="btn-primary" style="margin-top: 15px;">🚀 НАЧАТЬ ПУТЕШЕСТВИЕ</button>
+                    <button onclick="clearProgress()" class="btn-secondary" style="margin-top: 10px;">🗑️ Очистить прогресс</button>
+                    <button onclick="toggleDeveloperMode()" class="btn-secondary" style="margin-top: 10px; background: #ff9800;">🔧 Режим разработчика</button>
+                </div>
+            </div>
+
+            <div id="screen-game" class="screen">
+                <div class="status-bar">
+                    <div id="location-status">📍 Определяем местоположение...</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                </div>
+
+                <div id="current-point-card" class="current-point-card hidden">
+                    <div class="point-name" id="point-name">Название</div>
+                    <div class="point-description" id="point-description">Описание места</div>
+                    <div class="point-coords" id="point-coords">Координаты</div>
+                    <div class="distance-info">
+                        📍 <strong>Расстояние до точки:</strong> <span id="point-distance-value" class="distance-value">---</span> <span id="point-distance-unit">м</span>
+                        <div id="distance-status" style="font-size: 12px; margin-top: 5px;"></div>
+                    </div>
+                    <div class="hint" id="point-hint">💡 <strong>Подсказка:</strong> Найдите это место, подойдите поближе и нажмите кнопку ниже</div>
+                </div>
+
+                <button id="btn-main-ar">🎭 НАЙТИ НАРЗАННИКА 🎭</button>
+
+                <div id="camera-container" class="hidden">
+                    <video id="camera-preview" autoplay playsinline></video>
+                    <div class="camera-controls">
+                        <button id="btn-take-photo">📸 ПОЙМАТЬ НАРЗАННИКА</button>
+                        <button id="btn-cancel">❌ ОТМЕНА</button>
+                    </div>
+                    <div id="ar-character-overlay" class="hidden ar-character"></div>
+                    <div class="ar-instruction" id="ar-instruction">🔍 Наведи камеру на достопримечательность, чтобы появился дух</div>
+                </div>
+
+                <div id="narzannik-container" class="hidden">
+                    <div class="narzannik-card">
+                        <img id="narzannik-image" class="narzannik-image" src="" alt="Нарзанник">
+                        <div id="narzannik-emoji" class="narzannik-emoji" style="display: none;"></div>
+                        <h3 id="narzannik-name">Нарзанник</h3>
+                        <p id="narzannik-greeting">Приветствие</p>
+                        <div class="narzannik-info">
+                            <p><strong>Тип:</strong> <span id="narzannik-type">Тип</span></p>
+                            <p><strong>Способность:</strong> <span id="narzannik-ability">Способность</span></p>
+                        </div>
+                        <button id="btn-continue" class="btn-primary">➡️ К СЛЕДУЮЩЕЙ ТОЧКЕ</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="screen-victory" class="screen">
+                <div class="card" style="max-width: 500px;">
+                    <div style="font-size: 80px; margin-bottom: 20px;">🏆</div>
+                    <h2>Поздравляем!</h2>
+                    <p id="victory-route-name">Вы прошли маршрут и собрали всех нарзанников!</p>
+                    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; margin: 20px 0;">
+                        <h3>✨ Ваша коллекция ✨</h3>
+                        <div id="victory-collection" style="display: flex; justify-content: center; gap: 15px; margin: 15px 0; flex-wrap: wrap;"></div>
+                        <p><strong>⏱️ Время прохождения:</strong> <span id="game-time">--:--</span></p>
+                    </div>
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <button onclick="restartGame()" class="btn-primary">🔄 Пройти другой маршрут</button>
+                        <button onclick="shareResult()" class="btn-secondary">📤 Поделиться</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+        <footer><p>МифоГрад · Квесты по КМВ · 2024</p></footer>
+    </div>
+<script>
+        // ==================== ДАННЫЕ МАРШРУТОВ ====================
+        const ROUTES = {
+            pyatigorsk: {
+                name: "Тропой Лермонтова (Пятигорск)",
+                points: [
+                    { id: 1, order:1, name: "Пятигорский государственный университет", shortName:"ПГУ", description:"🎓 Современная точка притяжения знаний. Здесь оживают литературные традиции.", coordinates:{lat:44.045267,lng:43.061297}, radius_m:100, hint:"Улица Калинина, 9. Ищите главный корпус с колоннами.", narzannik:{ id:1, name:"Профессор Знаев", image:"images/professor.png", type:"Академический дух", greeting_text:"Я Профессор Знаев. Знания — ключ к тайнам Пятигорска!", ability_name:"Знание — сила", ability_description:"Открывает подсказки к следующей точке." } },
+                    { id: 2, order:2, name: "Грот Дианы", shortName:"Грот Дианы", description:"🏛️ Романтический грот 1829 года. Здесь Лермонтов вдохновлялся перед дуэлью.", coordinates:{lat:44.03581,lng:43.08177}, radius_m:50, hint:"Парк Цветник, у подножия Машука.", narzannik:{ id:2, name:"Гротик", image:"images/grotik.png", type:"Каменный дух", greeting_text:"Тсс, я слышу эхо бала 1841 года!", ability_name:"Каменная память", ability_description:"Находит старые надписи на камнях." } },
+                    { id: 3, order:3, name: "Академическая галерея", shortName:"Галерея", description:"💧 Первая питьевая галерея 1848 года. Аристократы пили целебную воду.", coordinates:{lat:44.04004,lng:43.08811}, radius_m:50, hint:"Центр парка Цветник, белое здание с колоннами.", narzannik:{ id:3, name:"Елизавет", image:"images/elizavet.png", type:"Водный дух", greeting_text:"Испей нарзана — обретешь мудрость.", ability_name:"Аура источника", ability_description:"Увеличивает шанс найти редкого духа." } },
+                    { id: 4, order:4, name: "Грот Лермонтова", shortName:"Грот Л.", description:"🌫️ Любимое убежище поэта. Здесь сидел Печорин.", coordinates:{lat:44.04222,lng:43.08639}, radius_m:50, hint:"Восточная часть парка Цветник.", narzannik:{ id:4, name:"Калипсо", image:"images/kalipso.png", type:"Теневой дух", greeting_text:"Моя тень хранит секреты.", ability_name:"Теневой покров", ability_description:"Помогает скрываться в нужный момент." } },
+                    { id: 5, order:5, name: "Эолова Арфа", shortName:"Арфа", description:"🎐 Павильон 1828 года. В ветреную погоду слышна музыка ветра.", coordinates:{lat:44.04500,lng:43.08972}, radius_m:50, hint:"Склон горы Горячей над парком.", narzannik:{ id:5, name:"Эолик", image:"images/eolik.png", type:"Воздушный дух", greeting_text:"Прислушайся к ветру!", ability_name:"Голос ветра", ability_description:"Ускоряет поиск следующей точки." } },
+                    { id: 6, order:6, name: "Провал", shortName:"Провал", description:"💎 Карстовое озеро с бирюзовой водой. Знаменито по 'Двенадцати стульям'.", coordinates:{lat:44.04361,lng:43.09194}, radius_m:50, hint:"Восточный склон горы Машук.", narzannik:{ id:6, name:"Провалёныш", image:"images/provalenysh.png", type:"Легендарный дух", greeting_text:"Ты дошел до тайны гор!", ability_name:"Хранитель тайн", ability_description:"Открывает секретные места." } }
+                ]},
+            kislovodsk: {
+                name: "Нарзанная Симфония (Кисловодск)",
+                points: [
+                    { id:101, order:1, name: "Кисловодский нарзанный бювет", shortName:"Нарзанный", description:"⛲ Главный источник нарзана. Вода с древних времен славится целебной силой.", coordinates:{lat:43.9053,lng:42.7168}, radius_m:80, hint:"Курортный бульвар, центральный бювет.", narzannik:{ id:101, name:"Нарзан-батыр", image:"images/narzan.png", type:"Целитель", greeting_text:"Я Нарзан-батыр! Моя вода исцеляет тело и дух.", ability_name:"Сила источника", ability_description:"Восстанавливает энергию после долгого пути." } },
+                    { id:102, order:2, name: "Курортный парк", shortName:"Парк", description:"🌳 Один из крупнейших парков Европы. Тенистые аллеи и лабиринты.", coordinates:{lat:43.9088,lng:42.7211}, radius_m:100, hint:"Вход от нарзанной галереи.", narzannik:{ id:102, name:"Лиса", image:"images/lisa.png", type:"Природный дух", greeting_text:"Я хранитель этих деревьев. Чувствуешь свежесть?", ability_name:"Шепот листвы", ability_description:"Подсказывает кратчайший путь в парке." } },
+                    { id:103, order:3, name: "Замок коварства и любви", shortName:"Замок", description:"🏰 Скальный останец причудливой формы. Легенда о несчастной любви.", coordinates:{lat:43.9115,lng:42.7279}, radius_m:60, hint:"Средняя часть Курортного парка, скала.", narzannik:{ id:103, name:"Эхо", image:"images/eha.png", type:"Эховый дух", greeting_text:"Крикни — и услышишь ответ веков.", ability_name:"Эхо памяти", ability_description:"Позволяет вспомнить забытые легенды." } },
+                    { id:104, order:4, name: "Красное солнышко", shortName:"Солнышко", description:"☀️ Смотровая площадка с панорамой на горы. Место силы.", coordinates:{lat:43.9152,lng:42.7314}, radius_m:50, hint:"Верхняя часть парка, дощатая беседка.", narzannik:{ id:104, name:"Светозар", image:"images/svetozar.png", type:"Солнечный дух", greeting_text:"Светозар приветствует тебя! Отсюда видно всю красоту Кавказа.", ability_name:"Солнечный луч", ability_description:"Освещает скрытые тропы." } },
+                    { id:105, order:5, name: "Долина роз", shortName:"Розы", description:"🌹 Розарий в нижней части парка. Аромат и красота.", coordinates:{lat:43.9017,lng:42.7144}, radius_m:70, hint:"Недалеко от входа со стороны ул. Чайковского.", narzannik:{ id:105, name:"Розалия", image:"images/rozalia.png", type:"Цветочный дух", greeting_text:"Вдохни аромат, и грусть уйдет.", ability_name:"Цветочный дар", ability_description:"Привлекает удачу в поисках." } }
+                ]},
+            kavkaz: {
+                name: "Легенды Кавказа (Ессентуки + Железноводск)",
+                points: [
+                    { id:201, order:1, name: "Ессентукский источник №4", shortName:"Источник №4", description:"💧 Знаменитая вода 'Ессентуки-4'. Питьевая галерея в стиле модерн.", coordinates:{lat:44.0458,lng:42.8612}, radius_m:70, hint:"Центр Ессентуков, Курортная зона.", narzannik:{ id:201, name:"Мира", image:"images/mira.png", type:"Целительный дух", greeting_text:"Вода №4 лечит тело и душу. Пей на здоровье!", ability_name:"Целебный эликсир", ability_description:"Ускоряет выздоровление в игре." } },
+                    { id:202, order:2, name: "Верхние ванны Ессентуки", shortName:"Ванны", description:"🏛️ Историческое здание 1914 года. Лечебные процедуры.", coordinates:{lat:44.0442,lng:42.8595}, radius_m:60, hint:"Улица Ленина, около парка.", narzannik:{ id:202, name:"Парик", image:"images/parik.png", type:"Водный дух", greeting_text:"Ванны дарят легкость телу.", ability_name:"Парение", ability_description:"Позволяет быстрее перемещаться." } },
+                    { id:203, order:3, name: "Железноводск - гора Железная", shortName:"Гора Железная", description:"⛰️ Священная гора, источник магнитных вод. Отсюда открывается вид на город.", coordinates:{lat:44.1362,lng:43.0164}, radius_m:120, hint:"Подъем по канатной дороге или пешком.", narzannik:{ id:203, name:"Металик", image:"images/metalic.png", type:"Железный дух", greeting_text:"Сила земли притягивает удачу!", ability_name:"Магнитное поле", ability_description:"Притягивает редких нарзанников." } },
+                    { id:204, order:4, name: "Пушкинская галерея Железноводск", shortName:"Галерея", description:"🎨 Изящная стеклянная галерея. Концерты и выставки.", coordinates:{lat:44.1385,lng:43.0208}, radius_m:50, hint:"Курортный парк, рядом с озером.", narzannik:{ id:204, name:"Люк", image:"images/luk.png", type:"Художественный дух", greeting_text:"Музыка и искусство вдохновляют!", ability_name:"Вдохновение", ability_description:"Повышает шанс найти редкую достопримечательность." } },
+                    { id:205, order:5, name: "Озеро Карпово (Железноводск)", shortName:"Озеро", description:"🦢 Живописное озеро в центре курортного парка. Легенда о девушке Карповой.", coordinates:{lat:44.1405,lng:43.0241}, radius_m:60, hint:"Центральная аллея парка, рядом с лечебницей.", narzannik:{ id:205, name:"Лукас", image:"images/lukas.png", type:"Водный дух", greeting_text:"Я хранительница озера. Моя красота исцеляет душу.", ability_name:"Зеркальная гладь", ability_description:"Показывает ближайшие точки на карте." } }
+                ]}
+        };
+
+        // ==================== ПЕРЕМЕННЫЕ ====================
+        let developerMode = false;
+        let userLocation = null;
+        let currentPoint = null;
+        let collectedNarzanniks = [];
+        let gameStartTime = null;
+        let currentRouteData = null;
+        let currentRouteId = null;
+        let cameraStream = null;
+        let cameraPermissionGranted = false;
+
+        // ==================== ФУНКЦИИ ====================
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function updateProgressBar() {
+            if (!currentRouteData) return;
+            const total = currentRouteData.points.length;
+            const collected = collectedNarzanniks.length;
+            const percent = (collected / total) * 100;
+            const fill = document.getElementById('progress-fill');
+            if (fill) fill.style.width = percent + '%';
+        }
+
+        function updateLocationStatus() {
+            const statusEl = document.getElementById('location-status');
+            if (statusEl && currentRouteData) {
+                statusEl.innerHTML = `📍 Маршрут: ${currentRouteData.name}<br>📊 Прогресс: ${collectedNarzanniks.length}/${currentRouteData.points.length} нарзанников`;
+                if (userLocation) {
+                    statusEl.innerHTML += `<br>📍 Ваши координаты: ${userLocation.lat.toFixed(5)}, ${userLocation.lng.toFixed(5)}`;
+                }
+            }
+            updateProgressBar();
+        }
+
+        function updateCurrentPointCard() {
+            const card = document.getElementById('current-point-card');
+            if (!currentPoint) {
+                card.classList.add('hidden');
+                return;
+            }
+            
+            document.getElementById('point-name').textContent = currentPoint.name;
+            document.getElementById('point-description').textContent = currentPoint.description;
+            document.getElementById('point-coords').textContent = `📍 ${currentPoint.coordinates.lat}, ${currentPoint.coordinates.lng}`;
+            
+            if (userLocation) {
+                const distance = calculateDistance(
+                    userLocation.lat, userLocation.lng,
+                    currentPoint.coordinates.lat, currentPoint.coordinates.lng
+                );
+                const distanceMeters = Math.round(distance * 1000);
+                const distanceEl = document.getElementById('point-distance-value');
+                const distanceStatus = document.getElementById('distance-status');
+                
+                if (distanceEl) distanceEl.textContent = distanceMeters;
+                
+                if (developerMode || distanceMeters <= currentPoint.radius_m) {
+                    distanceStatus.innerHTML = '✅ <span style="color: #4CAF50;">Вы рядом! Можно искать нарзанника.</span>';
+                } else {
+                    const needToGo = distanceMeters - currentPoint.radius_m;
+                    distanceStatus.innerHTML = `🚶 <span style="color: #ff6b6b;">Нужно пройти ещё ${needToGo} метров</span>`;
+                }
+            } else {
+                document.getElementById('point-distance-value').textContent = '---';
+            }
+            
+            document.getElementById('point-hint').innerHTML = `💡 <strong>Подсказка:</strong> ${currentPoint.hint}`;
+            card.classList.remove('hidden');
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function requestGeolocation() {
+            if (!navigator.geolocation) {
+                userLocation = { lat: 44.03581, lng: 43.08177 };
+                updateLocationStatus();
+                checkNearestPoint();
+                return;
+            }
+            
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    userLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
+                    updateLocationStatus();
+                    checkNearestPoint();
+                },
+                function(error) {
+                    userLocation = { lat: 44.03581, lng: 43.08177 };
+                    updateLocationStatus();
+                    checkNearestPoint();
+                }
+            );
+        }
+
+        function checkNearestPoint() {
+            if (!currentRouteData) return;
+            
+            const sortedPoints = [...currentRouteData.points].sort((a, b) => a.order - b.order);
+            let nextPoint = null;
+            
+            for (const point of sortedPoints) {
+                if (!collectedNarzanniks.includes(point.id)) {
+                    nextPoint = point;
+                    break;
+                }
+            }
+            
+            if (!nextPoint) {
+                showVictoryScreen();
+                return;
+            }
+            
+            currentPoint = nextPoint;
+            updateCurrentPointCard();
+            updateLocationStatus();
+        }
+
+        function updateCollection() {
+            localStorage.setItem('myphograd_collection_' + currentRouteId, JSON.stringify(collectedNarzanniks));
+            updateLocationStatus();
+            updateCurrentPointCard();
+        }
+
+        function toggleDeveloperMode() {
+            developerMode = !developerMode;
+            alert(developerMode ? '🔧 Режим разработчика ВКЛЮЧЕН\nТеперь можно фотографировать с любого расстояния!' : 'Режим разработчика выключен');
+            updateCurrentPointCard();
+        }
+
+        // ==================== КАМЕРА И AR ====================
+        async function initCamera() {
+            if (cameraStream && cameraStream.active) {
+                return true;
+            }
+            
+            const video = document.getElementById('camera-preview');
+            
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Ваш браузер не поддерживает камеру');
+                return false;
+            }
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+                });
+                
+                cameraStream = stream;
+                video.srcObject = stream;
+                await video.play();
+                cameraPermissionGranted = true;
+                return true;
+                
+            } catch (error) {
+                console.error('Ошибка камеры:', error);
+                alert('Не удалось получить доступ к камере: ' + error.message);
+                return false;
+            }
+        }
+
+        async function openCameraWithAR() {
+            if (!currentPoint) {
+                alert('Сначала выберите точку (нажмите "Начать путешествие")');
+                return;
+            }
+            
+            if (userLocation && !developerMode) {
+                const distance = calculateDistance(
+                    userLocation.lat, userLocation.lng,
+                    currentPoint.coordinates.lat, currentPoint.coordinates.lng
+                );
+                const distanceMeters = Math.round(distance * 1000);
+                
+                if (distanceMeters > currentPoint.radius_m) {
+                    alert(`⚠️ Вы слишком далеко от ${currentPoint.name}!\nНужно подойти ближе (в радиусе ${currentPoint.radius_m} м)\nВаше расстояние: ${distanceMeters} м`);
+                    return;
+                }
+            }
+            
+            const cameraContainer = document.getElementById('camera-container');
+            const arOverlay = document.getElementById('ar-character-overlay');
+            const arInstruction = document.getElementById('ar-instruction');
+            
+            const cameraReady = await initCamera();
+            if (!cameraReady) return;
+            
+            cameraContainer.classList.remove('hidden');
+            
+            arOverlay.innerHTML = '';
+            arOverlay.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150px; height: 150px; filter: drop-shadow(0 0 20px gold); animation: floatAR 2s ease-in-out infinite; cursor: pointer; z-index: 10001;';
+            
+            const arImage = document.createElement('img');
+            const imgPath = currentPoint.narzannik.image || '';
+            
+            arImage.src = imgPath;
+            arImage.alt = currentPoint.narzannik.name;
+            arImage.style.cssText = 'width: 100%; height: 100%; object-fit: contain; border-radius: 20px; background: rgba(0,0,0,0.3); padding: 10px;';
+            arImage.onerror = function() {
+                this.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Ccircle cx="50" cy="50" r="45" fill="%23ffd700"/%3E%3Ctext x="50" y="70" font-size="40" text-anchor="middle" fill="%23333"%3E📷%3C/text%3E%3C/svg%3E';
+            };
+            arOverlay.appendChild(arImage);
+            
+            arOverlay.classList.remove('hidden');
+            arInstruction.innerHTML = `✨ Ищи ${currentPoint.narzannik.name}! Наведи камеру на ${currentPoint.shortName} ✨`;
+        }
+
+        function captureNarzannik() {
+            if (!currentPoint) {
+                alert('Точка не выбрана');
+                closeCamera();
+                return;
+            }
+            
+            if (!collectedNarzanniks.includes(currentPoint.id)) {
+                collectedNarzanniks.push(currentPoint.id);
+                updateCollection();
+                
+                const flash = document.createElement('div');
+                flash.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:white;opacity:0.8;z-index:20000;pointer-events:none;transition:opacity 0.3s';
+                document.body.appendChild(flash);
+                setTimeout(() => {
+                    flash.style.opacity = '0';
+                    setTimeout(() => flash.remove(), 300);
+                }, 100);
+                
+                closeCamera();
+                showNarzannik(currentPoint.narzannik);
+            } else {
+                alert(`✨ ${currentPoint.narzannik.name} уже в вашей коллекции! ✨`);
+                closeCamera();
+            }
+        }
+
+        function closeCamera() {
+            const container = document.getElementById('camera-container');
+            const overlay = document.getElementById('ar-character-overlay');
+            
+            if (container) container.classList.add('hidden');
+            if (overlay) overlay.classList.add('hidden');
+        }
+        
+        function releaseCamera() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+            cameraPermissionGranted = false;
+        }
+
+        function showNarzannik(narzannik) {
+            console.log('Показываем нарзанника:', narzannik);
+            
+            const imgElement = document.getElementById('narzannik-image');
+            const emojiElement = document.getElementById('narzannik-emoji');
+            
+            if (!narzannik) {
+                console.error('Нет данных о нарзаннике');
+                return;
+            }
+            
+            emojiElement.style.display = 'none';
+            
+            const imgPath = narzannik.image || '';
+            imgElement.src = imgPath;
+            imgElement.style.display = 'block';
+            imgElement.onerror = function() {
+                this.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Ccircle cx="50" cy="50" r="45" fill="%23ffd700"/%3E%3Ctext x="50" y="70" font-size="40" text-anchor="middle" fill="%23333"%3E📷%3C/text%3E%3C/svg%3E';
+            };
+            
+            document.getElementById('narzannik-name').textContent = narzannik.name || 'Нарзанник';
+            document.getElementById('narzannik-greeting').textContent = narzannik.greeting_text || 'Приветствую тебя, путник!';
+            document.getElementById('narzannik-type').textContent = narzannik.type || 'Дух места';
+            
+            const abilityText = (narzannik.ability_name || 'Особая сила') + ': ' + (narzannik.ability_description || 'Дарует удачу в пути');
+            document.getElementById('narzannik-ability').textContent = abilityText;
+            
+            document.getElementById('narzannik-container').classList.remove('hidden');
+        }
+        
+        function goToNextPoint() {
+            document.getElementById('narzannik-container').classList.add('hidden');
+            setTimeout(() => {
+                checkNearestPoint();
+            }, 500);
+        }
+
+        // ==================== ПОБЕДА ====================
+        function showVictoryScreen() {
+            if (!currentRouteData) return;
+            if (collectedNarzanniks.length < currentRouteData.points.length) return;
+            
+            document.getElementById('victory-route-name').textContent = `Вы прошли маршрут "${currentRouteData.name}" и собрали всех нарзанников!`;
+            
+            if (gameStartTime) {
+                const minutes = Math.floor((Date.now() - gameStartTime) / 60000);
+                document.getElementById('game-time').textContent = `${minutes} минут`;
+            }
+            
+            const container = document.getElementById('victory-collection');
+            container.innerHTML = '';
+            
+            currentRouteData.points.forEach(point => {
+                const isCollected = collectedNarzanniks.includes(point.id);
+                const item = document.createElement('div');
+                item.style.cssText = `
+                    width: 80px;
+                    height: 80px;
+                    border-radius: 12px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    background: ${isCollected ? 'rgba(255,215,0,0.3)' : 'rgba(255,255,255,0.1)'};
+                    border: 2px solid ${isCollected ? '#ffd700' : 'rgba(255,255,255,0.2)'};
+                    padding: 5px;
+                `;
+                
+                if (isCollected && point.narzannik.image) {
+                    item.innerHTML = `<img src="${point.narzannik.image}" style="width: 50px; height: 50px; object-fit: contain; border-radius: 10px;"><div style="font-size: 10px; margin-top: 5px;">${point.shortName}</div>`;
+                } else {
+                    item.innerHTML = `<div style="font-size: 40px;">❓</div><div style="font-size: 10px; margin-top: 5px;">${point.shortName}</div>`;
+                }
+                container.appendChild(item);
+            });
+            
+            releaseCamera();
+            showScreen('screen-victory');
+        }
+
+        function startRoute(routeId) {
+            currentRouteId = routeId;
+            currentRouteData = ROUTES[routeId];
+            collectedNarzanniks = [];
+            
+            const saved = localStorage.getItem('myphograd_collection_' + routeId);
+            if (saved) {
+                try {
+                    collectedNarzanniks = JSON.parse(saved);
+                } catch(e) {}
+            }
+            
+            currentPoint = null;
+            gameStartTime = Date.now();
+            showScreen('screen-game');
+            requestGeolocation();
+        }
+
+        function restartGame() {
+            releaseCamera();
+            currentRouteData = null;
+            currentRouteId = null;
+            collectedNarzanniks = [];
+            currentPoint = null;
+            userLocation = null;
+            showScreen('screen-welcome');
+        }
+
+        function clearProgress() {
+            if (confirm('Очистить весь сохраненный прогресс и вернуться в меню?')) {
+                localStorage.removeItem('myphograd_collection_pyatigorsk');
+                localStorage.removeItem('myphograd_collection_kislovodsk');
+                localStorage.removeItem('myphograd_collection_kavkaz');
+                
+                collectedNarzanniks = [];
+                currentPoint = null;
+                currentRouteData = null;
+                currentRouteId = null;
+                userLocation = null;
+                
+                releaseCamera();
+                showScreen('screen-welcome');
+                alert('✅ Прогресс очищен!');
+            }
+        }
+
+        function shareResult() {
+            if (!currentRouteData) return;
+            const collected = collectedNarzanniks.length;
+            const total = currentRouteData.points.length;
+            const text = `Я прошел квест "${currentRouteData.name}" в МифоГраде и собрал ${collected}/${total} нарзанников! 🏆\n\nПопробуй и ты!`;
+            
+            if (navigator.share) {
+                navigator.share({ title: 'Мой результат в МифоГраде', text: text });
+            } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(text);
+                alert('✅ Результат скопирован в буфер обмена!');
+            } else {
+                alert(text);
+            }
+        }
+
+        // ==================== ИНИЦИАЛИЗАЦИЯ ====================
+        document.addEventListener('DOMContentLoaded', function() {
+            let selectedRoute = 'pyatigorsk';
+            
+            document.querySelectorAll('.route-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.route-btn').forEach(b => b.classList.remove('selected'));
+                    this.classList.add('selected');
+                    selectedRoute = this.dataset.route;
+                });
+            });
+            document.querySelector('.route-btn').classList.add('selected');
+            
+            document.getElementById('btn-start-route').addEventListener('click', function() {
+                startRoute(selectedRoute);
+            });
+            
+            document.getElementById('btn-main-ar').addEventListener('click', function() {
+                openCameraWithAR();
+            });
+            
+            document.getElementById('btn-take-photo').addEventListener('click', function() {
+                captureNarzannik();
+            });
+            
+            document.getElementById('btn-cancel').addEventListener('click', function() {
+                closeCamera();
+            });
+            
+            document.getElementById('btn-continue').addEventListener('click', function() {
+                goToNextPoint();
+            });
+        });
+        
+        window.clearProgress = clearProgress;
+        window.toggleDeveloperMode = toggleDeveloperMode;
+        window.restartGame = restartGame;
+        window.shareResult = shareResult;
+    </script>
+</body>
+</html>
