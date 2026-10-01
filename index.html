@@ -4,33 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>МифоГрад - Квест по КМВ</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23FBBF24'/%3E%3Ctext x='50' y='70' font-size='55' text-anchor='middle' fill='%231a472a'%3E⛰️%3C/text%3E%3C/svg%3E">
-    <!-- WebLLM — опциональная загрузка с fallback. Если не загрузится — игра работает без AI -->
-    <script>
-        (async function loadWebLLM() {
-            if (!('gpu' in navigator)) {
-                console.warn('⚠️ WebGPU не поддерживается, AI отключён');
-                window.dispatchEvent(new Event('webllm-ready'));
-                return;
-            }
-            const sources = [
-                "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.79/+esm",
-                "https://esm.run/@mlc-ai/web-llm"
-            ];
-            for (const url of sources) {
-                try {
-                    window.webllm = await import(url);
-                    console.log('✅ WebLLM загружен с', url);
-                    window.dispatchEvent(new Event('webllm-ready'));
-                    return;
-                } catch (e) {
-                    console.warn('⚠️', url, 'не сработал');
-                }
-            }
-            console.warn('❌ WebLLM недоступен, AI отключён');
-            window.dispatchEvent(new Event('webllm-ready'));
-        })();
-    </script>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23FBBF24'/%3E%3Ctext x='50' y='70' font-size='55' text-anchor='middle' fill='%231a472a'%3E⛰️%3C/text%3E%3C/svg%3E">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -262,7 +236,6 @@
     </style>
 </head>
 <body>
-    <!-- ⚡ Индикатор загрузки AI (правый верхний угол) -->
     <div class="ai-status" id="ai-status">
         <span class="dot"></span>
         <span id="ai-status-text">AI: ожидание</span>
@@ -382,35 +355,42 @@
     </div>
 
 <script>
+    // ================================================================
+    // ⚠️ ВСТАВЬТЕ ВАШ КЛЮЧ GIGACHAT ЗДЕСЬ
+    // Получить: https://developers.sber.ru/studio → GigaChat API → Настройки API → Получить ключ
+    // ================================================================
+    const GIGACHAT_API_KEY = 'ВСТАВЬТЕ_СЮДА_ВАШ_КЛЮЧ';
+    const GIGACHAT_SCOPE = 'GIGACHAT_API_PERS';
+
     // ==================== ДАННЫЕ МАРШРУТОВ ====================
     const ROUTES = {
         pyatigorsk: {
             name: "Тропой Лермонтова (Пятигорск)",
             points: [
-                { id: 1, order:1, name: "Пятигорский государственный университет", shortName:"ПГУ", description:"🎓 Современная точка притяжения знаний. Здесь оживают литературные традиции.", coordinates:{lat:44.045267,lng:43.061297}, radius_m:100, hint:"Улица Калинина, 9. Ищите главный корпус с колоннами.", narzannik:{ id:1, name:"Профессор Знаев", image:"images/professor.png", type:"Академический дух", greeting_text:"Я Профессор Знаев. Знания — ключ к тайнам Пятигорска!", ability_name:"Знание — сила", ability_description:"Открывает подсказки к следующей точке.", story:"Добро пожаловать в альма-матер, путник. Пятигорский государственный университет — один из старейших в регионе. Здесь изучают не только науки, но и историю родного края, литературу Кавказа. Именно в этих стенах бережно хранят наследие Лермонтова, Толстого и Пушкина.", secret: "В библиотеке есть редкие книги XIX века. Если попросишь — покажу.", age: "Университету больше восьмидесяти лет.", voicePitch: 1.05, voiceRate: 0.95 } },
-                { id: 2, order:2, name: "Грот Дианы", shortName:"Грот Дианы", description:"🏛️ Романтический грот 1829 года. Здесь Лермонтов вдохновлялся перед дуэлью.", coordinates:{lat:44.03581,lng:43.08177}, radius_m:50, hint:"Парк Цветник, у подножия Машука.", narzannik:{ id:2, name:"Гротик", image:"images/grotik.png", type:"Каменный дух", greeting_text:"Тсс, я слышу эхо бала 1841 года!", ability_name:"Каменная память", ability_description:"Находит старые надписи на камнях.", story:"Этот грот был вырублен в скале в 1829 году братьями Бернардацци. В июле 1841 года Лермонтов был здесь вместе с друзьями за несколько дней до гибели.", secret: "Есть поверье: обойди грот трижды по солнцу и загадай желание.", age: "Мне почти двести лет.", voicePitch: 0.85, voiceRate: 0.9 } },
-                { id: 3, order:3, name: "Академическая галерея", shortName:"Галерея", description:"💧 Первая питьевая галерея 1848 года.", coordinates:{lat:44.04004,lng:43.08811}, radius_m:50, hint:"Центр парка Цветник.", narzannik:{ id:3, name:"Елизавет", image:"images/elizavet.png", type:"Водный дух", greeting_text:"Испей нарзана — обретешь мудрость.", ability_name:"Аура источника", ability_description:"Увеличивает шанс найти редкого духа.", story:"В 1848 году здесь открылась первая питьевая галерея на Кавказских Минеральных Водах. Именно её описывал Лермонтов в «Герое нашего времени».", secret: "Вода из этого источника особенно полезна утром.", age: "Галерея открыта в 1848 году.", voicePitch: 1.2, voiceRate: 1.0 } },
-                { id: 4, order:4, name: "Грот Лермонтова", shortName:"Грот Л.", description:"🌫️ Любимое убежище поэта.", coordinates:{lat:44.04222,lng:43.08639}, radius_m:50, hint:"Восточная часть парка Цветник.", narzannik:{ id:4, name:"Калипсо", image:"images/kalipso.png", type:"Теневой дух", greeting_text:"Моя тень хранит секреты.", ability_name:"Теневой покров", ability_description:"Помогает скрываться.", story:"Это место Лермонтов любил больше всего. В романе «Герой нашего времени» именно здесь Печорин размышлял о судьбе.", secret: "Если войти в грот на закате, тень поэта появляется на стене.", age: "Мне столько же лет, сколько этой скале.", voicePitch: 0.95, voiceRate: 0.85 } },
-                { id: 5, order:5, name: "Эолова Арфа", shortName:"Арфа", description:"🎐 Павильон 1828 года.", coordinates:{lat:44.04500,lng:43.08972}, radius_m:50, hint:"Склон горы Горячей.", narzannik:{ id:5, name:"Эолик", image:"images/eolik.png", type:"Воздушный дух", greeting_text:"Прислушайся к ветру!", ability_name:"Голос ветра", ability_description:"Ускоряет поиск следующей точки.", story:"Эолова арфа построена в 1828 году. Внутри стояла настоящая арфа, звучавшая от ветра.", secret: "В ветреный день арфа издаёт семь разных нот.", age: "Мне скоро двести лет.", voicePitch: 1.15, voiceRate: 1.05 } },
-                { id: 6, order:6, name: "Провал", shortName:"Провал", description:"💎 Карстовое озеро с бирюзовой водой.", coordinates:{lat:44.04361,lng:43.09194}, radius_m:50, hint:"Восточный склон горы Машук.", narzannik:{ id:6, name:"Провалёныш", image:"images/provalenysh.png", type:"Легендарный дух", greeting_text:"Ты дошел до тайны гор!", ability_name:"Хранитель тайн", ability_description:"Открывает секретные места.", story:"Провал — карстовая воронка глубиной 20 метров с озером. В 1931 году описан Ильфом и Петровым.", secret: "В глубине озера есть второй ярус — подземная пещера.", age: "Провал образовался много тысяч лет назад.", voicePitch: 1.0, voiceRate: 0.92 } }
+                { id: 1, order:1, name: "Пятигорский государственный университет", shortName:"ПГУ", description:"🎓 Современная точка притяжения знаний.", coordinates:{lat:44.045267,lng:43.061297}, radius_m:100, hint:"Улица Калинина, 9.", narzannik:{ id:1, name:"Профессор Знаев", image:"images/professor.png", type:"Академический дух", greeting_text:"Я Профессор Знаев!", ability_name:"Знание — сила", ability_description:"Открывает подсказки.", story:"Пятигорский государственный университет — один из старейших в регионе. Здесь хранят наследие Лермонтова, Толстого и Пушкина.", secret: "В библиотеке есть редкие книги XIX века.", age: "Университету больше восьмидесяти лет.", voicePitch: 1.05, voiceRate: 0.95 } },
+                { id: 2, order:2, name: "Грот Дианы", shortName:"Грот Дианы", description:"🏛️ Романтический грот 1829 года.", coordinates:{lat:44.03581,lng:43.08177}, radius_m:50, hint:"Парк Цветник.", narzannik:{ id:2, name:"Гротик", image:"images/grotik.png", type:"Каменный дух", greeting_text:"Тсс, я слышу эхо бала!", ability_name:"Каменная память", ability_description:"Находит старые надписи.", story:"Грот вырублен в 1829 году братьями Бернардацци. Здесь Лермонтов был за несколько дней до гибели.", secret: "Обойди грот трижды по солнцу.", age: "Мне почти двести лет.", voicePitch: 0.85, voiceRate: 0.9 } },
+                { id: 3, order:3, name: "Академическая галерея", shortName:"Галерея", description:"💧 Первая питьевая галерея 1848 года.", coordinates:{lat:44.04004,lng:43.08811}, radius_m:50, hint:"Центр парка Цветник.", narzannik:{ id:3, name:"Елизавет", image:"images/elizavet.png", type:"Водный дух", greeting_text:"Испей нарзана!", ability_name:"Аура источника", ability_description:"Помогает найти редкое.", story:"Галерея открыта в 1848 году. Её описывал Лермонтов в «Герое нашего времени».", secret: "Вода полезна утром.", age: "Галерея открыта в 1848 году.", voicePitch: 1.2, voiceRate: 1.0 } },
+                { id: 4, order:4, name: "Грот Лермонтова", shortName:"Грот Л.", description:"🌫️ Любимое убежище поэта.", coordinates:{lat:44.04222,lng:43.08639}, radius_m:50, hint:"Восточная часть парка.", narzannik:{ id:4, name:"Калипсо", image:"images/kalipso.png", type:"Теневой дух", greeting_text:"Моя тень хранит секреты.", ability_name:"Теневой покров", ability_description:"Помогает скрываться.", story:"Здесь Лермонтов сидел один, размышляя о судьбе. В романе — место раздумий Печорина.", secret: "Тень поэта появляется на закате.", age: "Мне столько же лет, сколько скале.", voicePitch: 0.95, voiceRate: 0.85 } },
+                { id: 5, order:5, name: "Эолова Арфа", shortName:"Арфа", description:"🎐 Павильон 1828 года.", coordinates:{lat:44.04500,lng:43.08972}, radius_m:50, hint:"Склон горы Горячей.", narzannik:{ id:5, name:"Эолик", image:"images/eolik.png", type:"Воздушный дух", greeting_text:"Прислушайся к ветру!", ability_name:"Голос ветра", ability_description:"Ускоряет поиск.", story:"Эолова арфа построена в 1828 году. Внутри звучала настоящая арфа от ветра.", secret: "В ветреный день арфа издаёт семь нот.", age: "Мне скоро двести лет.", voicePitch: 1.15, voiceRate: 1.05 } },
+                { id: 6, order:6, name: "Провал", shortName:"Провал", description:"💎 Карстовое озеро с бирюзовой водой.", coordinates:{lat:44.04361,lng:43.09194}, radius_m:50, hint:"Восточный склон Машука.", narzannik:{ id:6, name:"Провалёныш", image:"images/provalenysh.png", type:"Легендарный дух", greeting_text:"Ты дошел до тайны гор!", ability_name:"Хранитель тайн", ability_description:"Открывает секреты.", story:"Провал — воронка 20 метров с озером. Описан Ильфом и Петровым в 1931 году.", secret: "В глубине есть второй ярус.", age: "Провал образовался тысячи лет назад.", voicePitch: 1.0, voiceRate: 0.92 } }
             ]},
         kislovodsk: {
             name: "Нарзанная Симфония (Кисловодск)",
             points: [
-                { id:101, order:1, name: "Кисловодский нарзанный бювет", shortName:"Нарзанный", description:"⛲ Главный источник нарзана.", coordinates:{lat:43.9053,lng:42.7168}, radius_m:80, hint:"Курортный бульвар.", narzannik:{ id:101, name:"Нарзан-батыр", image:"images/narzan.png", type:"Целитель", greeting_text:"Я Нарзан-батыр!", ability_name:"Сила источника", ability_description:"Восстанавливает энергию.", story:"Кисловодский нарзан известен с древности. Нарты пили эту воду и обретали силу.", secret: "Трижды набери воду на рассвете — сбудутся три желания.", age: "Источнику больше тысячи лет.", voicePitch: 0.9, voiceRate: 0.95 } },
-                { id:102, order:2, name: "Курортный парк", shortName:"Парк", description:"🌳 Один из крупнейших парков Европы.", coordinates:{lat:43.9088,lng:42.7211}, radius_m:100, hint:"Вход от нарзанной галереи.", narzannik:{ id:102, name:"Лиса", image:"images/lisa.png", type:"Природный дух", greeting_text:"Я хранитель этих деревьев.", ability_name:"Шепот листвы", ability_description:"Подсказывает путь.", story:"В этих аллеях гуляли Пушкин, Лермонтов, Толстой, Шаляпин.", secret: "В полночь слышно, как деревья шепчутся.", age: "Парку больше двухсот лет.", voicePitch: 1.1, voiceRate: 1.0 } },
-                { id:103, order:3, name: "Замок коварства и любви", shortName:"Замок", description:"🏰 Скальный останец.", coordinates:{lat:43.9115,lng:42.7279}, radius_m:60, hint:"Средняя часть парка.", narzannik:{ id:103, name:"Эхо", image:"images/eha.png", type:"Эховый дух", greeting_text:"Крикни — и услышишь ответ веков.", ability_name:"Эхо памяти", ability_description:"Вспоминает забытые легенды.", story:"Легенда гласит: князь заточил здесь девушку, а её возлюбленный погиб, пытаясь спасти.", secret: "Крикни своё имя у скалы — эхо ответит.", age: "Скале тысячи лет.", voicePitch: 0.9, voiceRate: 0.88 } },
-                { id:104, order:4, name: "Красное солнышко", shortName:"Солнышко", description:"☀️ Смотровая площадка.", coordinates:{lat:43.9152,lng:42.7314}, radius_m:50, hint:"Верхняя часть парка.", narzannik:{ id:104, name:"Светозар", image:"images/svetozar.png", type:"Солнечный дух", greeting_text:"Светозар приветствует тебя!", ability_name:"Солнечный луч", ability_description:"Освещает скрытые тропы.", story:"Отсюда видно Эльбрус и весь Кавказский хребет.", secret: "Первый луч солнца приносит удачу на весь день.", age: "Место священно с древности.", voicePitch: 1.2, voiceRate: 1.05 } },
-                { id:105, order:5, name: "Долина роз", shortName:"Розы", description:"🌹 Розарий.", coordinates:{lat:43.9017,lng:42.7144}, radius_m:70, hint:"Недалеко от входа со стороны ул. Чайковского.", narzannik:{ id:105, name:"Розалия", image:"images/rozalia.png", type:"Цветочный дух", greeting_text:"Вдохни аромат.", ability_name:"Цветочный дар", ability_description:"Привлекает удачу.", story:"Здесь более сотни сортов роз.", secret: "Найди куст с пятью бутонами — загадай желание.", age: "Розарию больше ста лет.", voicePitch: 1.25, voiceRate: 1.0 } }
+                { id:101, order:1, name: "Кисловодский нарзанный бювет", shortName:"Нарзанный", description:"⛲ Главный источник нарзана.", coordinates:{lat:43.9053,lng:42.7168}, radius_m:80, hint:"Курортный бульвар.", narzannik:{ id:101, name:"Нарзан-батыр", image:"images/narzan.png", type:"Целитель", greeting_text:"Я Нарзан-батыр!", ability_name:"Сила источника", ability_description:"Восстанавливает энергию.", story:"Кисловодский нарзан известен с древности. Нарты пили эту воду и обретали силу.", secret: "Набери воду трижды на рассвете.", age: "Источнику больше тысячи лет.", voicePitch: 0.9, voiceRate: 0.95 } },
+                { id:102, order:2, name: "Курортный парк", shortName:"Парк", description:"🌳 Один из крупнейших парков Европы.", coordinates:{lat:43.9088,lng:42.7211}, radius_m:100, hint:"Вход от галереи.", narzannik:{ id:102, name:"Лиса", image:"images/lisa.png", type:"Природный дух", greeting_text:"Я хранитель деревьев.", ability_name:"Шепот листвы", ability_description:"Подсказывает путь.", story:"В аллеях гуляли Пушкин, Лермонтов, Толстой, Шаляпин.", secret: "В полночь деревья шепчутся.", age: "Парку больше двухсот лет.", voicePitch: 1.1, voiceRate: 1.0 } },
+                { id:103, order:3, name: "Замок коварства и любви", shortName:"Замок", description:"🏰 Скальный останец.", coordinates:{lat:43.9115,lng:42.7279}, radius_m:60, hint:"Средняя часть парка.", narzannik:{ id:103, name:"Эхо", image:"images/eha.png", type:"Эховый дух", greeting_text:"Крикни — услышишь ответ веков.", ability_name:"Эхо памяти", ability_description:"Вспоминает легенды.", story:"Легенда о князе, заточившем девушку. Её возлюбленный погиб, пытаясь спасти.", secret: "Крикни имя — эхо ответит.", age: "Скале тысячи лет.", voicePitch: 0.9, voiceRate: 0.88 } },
+                { id:104, order:4, name: "Красное солнышко", shortName:"Солнышко", description:"☀️ Смотровая площадка.", coordinates:{lat:43.9152,lng:42.7314}, radius_m:50, hint:"Верхняя часть парка.", narzannik:{ id:104, name:"Светозар", image:"images/svetozar.png", type:"Солнечный дух", greeting_text:"Светозар приветствует!", ability_name:"Солнечный луч", ability_description:"Освещает тропы.", story:"Отсюда видно Эльбрус и весь Кавказский хребет.", secret: "Первый луч приносит удачу.", age: "Место священно с древности.", voicePitch: 1.2, voiceRate: 1.05 } },
+                { id:105, order:5, name: "Долина роз", shortName:"Розы", description:"🌹 Розарий.", coordinates:{lat:43.9017,lng:42.7144}, radius_m:70, hint:"У входа со стороны ул. Чайковского.", narzannik:{ id:105, name:"Розалия", image:"images/rozalia.png", type:"Цветочный дух", greeting_text:"Вдохни аромат.", ability_name:"Цветочный дар", ability_description:"Привлекает удачу.", story:"Более сотни сортов роз.", secret: "Найди куст с пятью бутонами.", age: "Розарию больше ста лет.", voicePitch: 1.25, voiceRate: 1.0 } }
             ]},
         kavkaz: {
             name: "Легенды Кавказа (Ессентуки + Железноводск)",
             points: [
-                { id:201, order:1, name: "Ессентукский источник №4", shortName:"Источник №4", description:"💧 Знаменитая вода 'Ессентуки-4'.", coordinates:{lat:44.0458,lng:42.8612}, radius_m:70, hint:"Центр Ессентуков.", narzannik:{ id:201, name:"Мира", image:"images/mira.png", type:"Целительный дух", greeting_text:"Вода №4 лечит тело и душу.", ability_name:"Целебный эликсир", ability_description:"Ускоряет выздоровление.", story:"Ессентуки-4 — лечебный эликсир с уникальным составом.", secret: "Один стакан воды на рассвете — день пройдёт легко.", age: "Источник известен с XIX века.", voicePitch: 1.15, voiceRate: 0.98 } },
-                { id:202, order:2, name: "Верхние ванны Ессентуки", shortName:"Ванны", description:"🏛️ Историческое здание 1914 года.", coordinates:{lat:44.0442,lng:42.8595}, radius_m:60, hint:"Улица Ленина.", narzannik:{ id:202, name:"Парик", image:"images/parik.png", type:"Водный дух", greeting_text:"Ванны дарят легкость.", ability_name:"Парение", ability_description:"Ускоряет перемещение.", story:"Построены в 1914 году архитектором Шреттером.", secret: "Прошепчи желание в ванне — вода его запомнит.", age: "Зданию больше ста лет.", voicePitch: 1.0, voiceRate: 0.95 } },
-                { id:203, order:3, name: "Железноводск - гора Железная", shortName:"Гора Железная", description:"⛰️ Священная гора.", coordinates:{lat:44.1362,lng:43.0164}, radius_m:120, hint:"Подъём по канатной дороге.", narzannik:{ id:203, name:"Металик", image:"images/metalic.png", type:"Железный дух", greeting_text:"Сила земли притягивает удачу!", ability_name:"Магнитное поле", ability_description:"Притягивает редких нарзанников.", story:"Здесь бьют источники с железосодержащей водой — единственной в России.", secret: "Приложи ладонь к железистому камню.", age: "Горе миллионы лет.", voicePitch: 0.85, voiceRate: 0.9 } },
-                { id:204, order:4, name: "Пушкинская галерея Железноводск", shortName:"Галерея", description:"🎨 Стеклянная галерея.", coordinates:{lat:44.1385,lng:43.0208}, radius_m:50, hint:"Курортный парк.", narzannik:{ id:204, name:"Люк", image:"images/luk.png", type:"Художественный дух", greeting_text:"Музыка вдохновляет!", ability_name:"Вдохновение", ability_description:"Повышает шанс найти редкое.", story:"Стеклянный купол делает её похожей на хрустальный дворец.", secret: "Зал с особым эхом рождает красивые мелодии.", age: "Галерею открыли в 1901 году.", voicePitch: 1.1, voiceRate: 1.0 } },
-                { id:205, order:5, name: "Озеро Карпово", shortName:"Озеро", description:"🦢 Живописное озеро.", coordinates:{lat:44.1405,lng:43.0241}, radius_m:60, hint:"Центральная аллея парка.", narzannik:{ id:205, name:"Лукас", image:"images/lukas.png", type:"Водный дух", greeting_text:"Я хранительница озера.", ability_name:"Зеркальная гладь", ability_description:"Показывает точки на карте.", story:"Название озеру дала легенда о девушке Карповой.", secret: "Брось монетку — лебеди подскажут, вернёшься ли снова.", age: "Легенде больше века.", voicePitch: 1.2, voiceRate: 0.95 } }
+                { id:201, order:1, name: "Ессентукский источник №4", shortName:"Источник №4", description:"💧 Знаменитая вода 'Ессентуки-4'.", coordinates:{lat:44.0458,lng:42.8612}, radius_m:70, hint:"Центр Ессентуков.", narzannik:{ id:201, name:"Мира", image:"images/mira.png", type:"Целительный дух", greeting_text:"Вода №4 лечит тело и душу.", ability_name:"Целебный эликсир", ability_description:"Ускоряет выздоровление.", story:"Ессентуки-4 — лечебный эликсир с уникальным составом.", secret: "Стакан на рассвете — день пройдёт легко.", age: "Источник известен с XIX века.", voicePitch: 1.15, voiceRate: 0.98 } },
+                { id:202, order:2, name: "Верхние ванны Ессентуки", shortName:"Ванны", description:"🏛️ Историческое здание 1914 года.", coordinates:{lat:44.0442,lng:42.8595}, radius_m:60, hint:"Улица Ленина.", narzannik:{ id:202, name:"Парик", image:"images/parik.png", type:"Водный дух", greeting_text:"Ванны дарят легкость.", ability_name:"Парение", ability_description:"Ускоряет перемещение.", story:"Построены в 1914 году архитектором Шреттером.", secret: "Прошепчи желание в ванне.", age: "Зданию больше ста лет.", voicePitch: 1.0, voiceRate: 0.95 } },
+                { id:203, order:3, name: "Железноводск - гора Железная", shortName:"Гора Железная", description:"⛰️ Священная гора.", coordinates:{lat:44.1362,lng:43.0164}, radius_m:120, hint:"Подъём по канатной дороге.", narzannik:{ id:203, name:"Металик", image:"images/metalic.png", type:"Железный дух", greeting_text:"Сила земли притягивает удачу!", ability_name:"Магнитное поле", ability_description:"Притягивает редких нарзанников.", story:"Здесь источники с железосодержащей водой — единственные в России.", secret: "Приложи ладонь к железистому камню.", age: "Горе миллионы лет.", voicePitch: 0.85, voiceRate: 0.9 } },
+                { id:204, order:4, name: "Пушкинская галерея Железноводск", shortName:"Галерея", description:"🎨 Стеклянная галерея.", coordinates:{lat:44.1385,lng:43.0208}, radius_m:50, hint:"Курортный парк.", narzannik:{ id:204, name:"Люк", image:"images/luk.png", type:"Художественный дух", greeting_text:"Музыка вдохновляет!", ability_name:"Вдохновение", ability_description:"Повышает шанс найти редкое.", story:"Стеклянный купол делает её похожей на хрустальный дворец.", secret: "Зал с особым эхом рождает мелодии.", age: "Галерею открыли в 1901 году.", voicePitch: 1.1, voiceRate: 1.0 } },
+                { id:205, order:5, name: "Озеро Карпово", shortName:"Озеро", description:"🦢 Живописное озеро.", coordinates:{lat:44.1405,lng:43.0241}, radius_m:60, hint:"Центральная аллея парка.", narzannik:{ id:205, name:"Лукас", image:"images/lukas.png", type:"Водный дух", greeting_text:"Я хранительница озера.", ability_name:"Зеркальная гладь", ability_description:"Показывает точки на карте.", story:"Название дала легенда о девушке Карповой.", secret: "Брось монетку — лебеди подскажут.", age: "Легенде больше века.", voicePitch: 1.2, voiceRate: 0.95 } }
             ]}
     };
 
@@ -425,7 +405,7 @@
     let cameraStream = null;
     let cameraPermissionGranted = false;
     let currentFacingMode = 'environment';
-    let cameraInitializing = false; // ← ЗАЩИТА от двойного запуска
+    let cameraInitializing = false;
 
     // ==================== ИНДИКАТОР AI ====================
     function updateAIStatus(status, text) {
@@ -461,68 +441,127 @@
         }
     }
 
-    // ==================== ЛОКАЛЬНАЯ LLM (WebLLM) ====================
-    let llmEngine = null;
+    // ==================== GIGACHAT API ====================
     let llmReady = false;
     let llmLoading = false;
     let llmUnavailable = false;
-    const LLM_MODEL = "gemma-2-2b-it-q4f16_1-MLC";
+    let gigaAccessToken = null;
+    let gigaTokenExpiry = 0;
+
+    // Сброс ключа (для отладки)
+    function resetGigaToken() {
+        gigaAccessToken = null;
+        gigaTokenExpiry = 0;
+    }
+
+    // Получение токена доступа GigaChat
+    async function getGigaChatToken() {
+        // Если токен ещё жив — возвращаем его
+        if (gigaAccessToken && Date.now() < gigaTokenExpiry) {
+            return gigaAccessToken;
+        }
+
+        if (!GIGACHAT_API_KEY || GIGACHAT_API_KEY === 'MDFhMGY3NWUtYjRhMC03OTMyLWE0ODMtZmQ4NDE0MjQ1NmU5OmQxN2JiNjhiLTA1MDMtNGEwOS05ZWVmLThhYTdkMDY2NGRmOQ==') {
+            console.warn('⚠️ GigaChat API ключ не указан');
+            return null;
+        }
+
+        try {
+            // Генерация уникального RqUID
+            const rqUID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+
+            const response = await fetch('https://ngw.devices.sberbank.ru:9443/api/v2/oauth', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': 'application/json',
+                    'RqUID': rqUID,
+                    'Authorization': `Basic ${GIGACHAT_API_KEY}`
+                },
+                body: `scope=${GIGACHAT_SCOPE}`
+            });
+
+            if (!response.ok) {
+                throw new Error(`Auth failed: ${response.status}`);
+            }
+
+            const data = await response.json();
+            gigaAccessToken = data.access_token;
+            // Токен живёт 30 минут, но поставим запас — 25 минут
+            gigaTokenExpiry = Date.now() + (25 * 60 * 1000);
+            
+            console.log('✅ GigaChat токен получен');
+            return gigaAccessToken;
+        } catch (error) {
+            console.error('❌ Ошибка авторизации GigaChat:', error);
+            return null;
+        }
+    }
 
     async function initLLM() {
-        if (llmReady || llmLoading || llmUnavailable) return;
-        if (!('gpu' in navigator)) {
-            console.warn('❌ WebGPU не поддерживается');
-            llmUnavailable = true;
-            updateAIStatus('error', 'AI: нет WebGPU');
-            return;
-        }
-        if (!window.webllm) {
-            console.log('⏳ WebLLM не загружен');
-            llmUnavailable = true;
-            updateAIStatus('error', 'AI: CDN недоступен');
-            return;
-        }
+        if (llmReady || llmLoading) return;
+        
+        updateAIStatus('loading', 'AI: подключение...');
+        console.log('🧠 Подключение к GigaChat API...');
 
-        llmLoading = true;
-        updateAIStatus('loading', 'AI: 0%');
-        console.log('🧠 Загружаем модель:', LLM_MODEL);
-        try {
-            const { CreateMLCEngine } = window.webllm;
-            llmEngine = await CreateMLCEngine(LLM_MODEL, {
-                initProgressCallback: (report) => {
-                    const pct = Math.round(report.progress * 100);
-                    console.log(`📥 Загрузка: ${pct}%`);
-                    updateAIStatus('loading', `AI: ${pct}%`);
-                }
-            });
+        const token = await getGigaChatToken();
+
+        if (token) {
             llmReady = true;
             llmLoading = false;
             updateAIStatus('ready', 'AI: готов');
-            console.log('✅ LLM готова');
-        } catch (error) {
-            llmLoading = false;
+            console.log('✅ GigaChat API готов');
+        } else {
             llmUnavailable = true;
-            updateAIStatus('error', 'AI: ошибка');
-            console.error('❌ Ошибка LLM:', error);
+            updateAIStatus('error', 'AI: ошибка подключения');
+            console.error('❌ GigaChat недоступен');
         }
     }
 
     async function askLLM(userMessage, context = {}) {
         if (!llmReady) return null;
+        
         const n = context.narzannik || {};
-        const sys = `Ты — ${n.name || 'нарзанник'}, ${n.type || 'дух места'}. Отвечай коротко (2-3 предложения) на русском, с кавказским колоритом.`;
+        const sys = `Ты — ${n.name || 'нарзанник'}, ${n.type || 'дух места'} из Пятигорска. Ты знаешь историю места: ${context.pointName || ''}. Отвечай коротко (2-3 предложения) на русском языке, с лёгким кавказским колоритом. Не используй списки, разметку и эмодзи.`;
+        
         try {
-            const reply = await llmEngine.chat.completions.create({
-                messages: [
-                    { role: 'system', content: sys },
-                    { role: 'user', content: userMessage }
-                ],
-                temperature: 0.8,
-                max_tokens: 150
+            const token = await getGigaChatToken();
+            if (!token) return null;
+
+            const response = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    model: 'GigaChat',
+                    messages: [
+                        { role: 'system', content: sys },
+                        { role: 'user', content: userMessage }
+                    ],
+                    temperature: 0.8,
+                    max_tokens: 150
+                })
             });
-            return reply.choices[0].message.content.trim();
-        } catch (e) {
-            console.error('❌ LLM error:', e);
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    // Токен истёк — сбрасываем, попробуем в следующий раз
+                    resetGigaToken();
+                }
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.choices?.[0]?.message?.content?.trim() || null;
+        } catch (error) {
+            console.error('❌ GigaChat ошибка:', error);
             return null;
         }
     }
@@ -531,7 +570,6 @@
     function showScreen(screenId) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById(screenId).classList.add('active');
-        // Скрываем индикатор AI на экране победы
         const aiStatus = document.getElementById('ai-status');
         if (aiStatus) {
             if (screenId === 'screen-victory') aiStatus.classList.add('hidden');
@@ -624,15 +662,10 @@
         updateCurrentPointCard();
     }
 
-    // ==================== КАМЕРА (ИСПРАВЛЕНА) ====================
+    // ==================== КАМЕРА ====================
     async function initCamera() {
         if (cameraStream && cameraStream.active) return true;
-        
-        // ⚡ ЗАЩИТА: не запускаем дважды одновременно
-        if (cameraInitializing) {
-            console.log('⏳ Камера уже инициализируется...');
-            return false;
-        }
+        if (cameraInitializing) { console.log('⏳ Камера уже инициализируется...'); return false; }
         cameraInitializing = true;
 
         const video = document.getElementById('camera-preview');
@@ -649,17 +682,12 @@
             cameraStream = stream;
             video.srcObject = stream;
 
-            // ⚡ ЗАЩИТА от AbortError: retry через 150 мс
-            try {
-                await video.play();
-            } catch (playErr) {
+            try { await video.play(); }
+            catch (playErr) {
                 if (playErr.name === 'AbortError') {
-                    console.warn('⚠️ AbortError, повторяю play()...');
                     await new Promise(r => setTimeout(r, 150));
                     await video.play();
-                } else {
-                    throw playErr;
-                }
+                } else throw playErr;
             }
 
             cameraPermissionGranted = true;
@@ -668,10 +696,7 @@
         } catch (error) {
             console.error('Ошибка камеры:', error);
             cameraInitializing = false;
-            // Не показываем alert на AbortError — это не критично
-            if (error.name !== 'AbortError') {
-                alert('Не удалось запустить камеру: ' + error.message);
-            }
+            if (error.name !== 'AbortError') alert('Не удалось запустить камеру: ' + error.message);
             return false;
         }
     }
@@ -797,7 +822,8 @@
         showScreen('screen-game');
         preloadRouteImages(currentRouteData);
         requestGeolocation();
-        setTimeout(() => initLLM(), 2000);
+        // Инициализация GigaChat
+        initLLM();
     }
 
     function restartGame() {
@@ -896,14 +922,13 @@
             if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
         };
 
-        // ⚠️ ИСПРАВЛЕННЫЙ onresult — с защитой от undefined
         recognition.onresult = (event) => {
             let interim = '', final = '';
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const result = event.results[i];
-                if (!result || !result[0]) continue;   // ЗАЩИТА
+                if (!result || !result[0]) continue;
                 const t = result[0].transcript;
-                if (!t) continue;                       // ЗАЩИТА
+                if (!t) continue;
                 if (result.isFinal) final += t;
                 else interim += t;
             }
@@ -960,7 +985,6 @@
         if (!currentPoint) { speakText('Сначала выберите точку'); return; }
         const n = currentPoint.narzannik;
 
-        // Быстрые интенты
         if (/(расскаж|поведай|истори[юя]|легенд|о месте|об этом)/.test(lower)) { tellStory(n); return; }
         if (/(стоп|остановись|тихо|замолчи|хватит)/.test(lower)) { stopSpeaking(); return; }
         if (/(повтори|ещё раз|снова)/.test(lower)) { if (lastSpokenText) speakText(lastSpokenText, { pitch: n.voicePitch, rate: n.voiceRate }); return; }
@@ -979,7 +1003,7 @@
         if (/(спасибо|благодарю)/.test(lower)) { speakText('Рад помочь, путник!'); return; }
         if (/(пока|прощай|до встречи)/.test(lower)) { speakText('До встречи!'); return; }
 
-        // AI
+        // GigaChat AI
         if (llmReady) {
             const reply = await askLLM(lower, { narzannik: n, pointName: currentPoint.name });
             if (reply) {
