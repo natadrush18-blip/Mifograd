@@ -86,6 +86,53 @@
 
         .subtitle { font-size: 0.95em; color: #4B5563; font-weight: 600; text-shadow: 0 1px 2px rgba(255,255,255,0.8); }
 
+        /* ==================== ИНДИКАТОР AI ==================== */
+        .ai-status {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #1a2b3c;
+            box-shadow: 0 4px 15px rgba(139,92,246,0.3);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+            border: 1.5px solid rgba(255,255,255,0.9);
+        }
+        .ai-status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #9CA3AF;
+            transition: background 0.3s;
+        }
+        .ai-status.ready .dot {
+            background: #10B981;
+            box-shadow: 0 0 10px #10B981;
+        }
+        .ai-status.loading .dot {
+            background: #FBBF24;
+            animation: dotPulse 1s infinite;
+        }
+        .ai-status.error .dot {
+            background: #F43F5E;
+        }
+        .ai-status.hidden {
+            display: none !important;
+        }
+        @keyframes dotPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.8); }
+        }
+
         .screen { display: none; }
         .screen.active { display: block; animation: screenIn 0.4s ease; }
         @keyframes screenIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -214,6 +261,12 @@
     </style>
 </head>
 <body>
+    <!-- ⚡ Индикатор загрузки AI (правый верхний угол) -->
+    <div class="ai-status" id="ai-status">
+        <span class="dot"></span>
+        <span id="ai-status-text">AI: ожидание</span>
+    </div>
+
     <div class="container">
         <header>
             <h1>МИФОГРАД</h1>
@@ -371,6 +424,17 @@
     let cameraStream = null;
     let cameraPermissionGranted = false;
     let currentFacingMode = 'environment';
+    let cameraInitializing = false; // ← ЗАЩИТА от двойного запуска
+
+    // ==================== ИНДИКАТОР AI ====================
+    function updateAIStatus(status, text) {
+        const el = document.getElementById('ai-status');
+        const textEl = document.getElementById('ai-status-text');
+        if (!el || !textEl) return;
+        el.classList.remove('ready', 'loading', 'error');
+        if (status) el.classList.add(status);
+        textEl.textContent = text;
+    }
 
     // ==================== ПРЕДЗАГРУЗКА КАРТИНОК ====================
     const _imageCache = new Set();
@@ -408,15 +472,18 @@
         if (!('gpu' in navigator)) {
             console.warn('❌ WebGPU не поддерживается');
             llmUnavailable = true;
+            updateAIStatus('error', 'AI: нет WebGPU');
             return;
         }
         if (!window.webllm) {
             console.log('⏳ WebLLM не загружен');
             llmUnavailable = true;
+            updateAIStatus('error', 'AI: CDN недоступен');
             return;
         }
 
         llmLoading = true;
+        updateAIStatus('loading', 'AI: 0%');
         console.log('🧠 Загружаем модель:', LLM_MODEL);
         try {
             const { CreateMLCEngine } = window.webllm;
@@ -424,14 +491,17 @@
                 initProgressCallback: (report) => {
                     const pct = Math.round(report.progress * 100);
                     console.log(`📥 Загрузка: ${pct}%`);
+                    updateAIStatus('loading', `AI: ${pct}%`);
                 }
             });
             llmReady = true;
             llmLoading = false;
+            updateAIStatus('ready', 'AI: готов');
             console.log('✅ LLM готова');
         } catch (error) {
             llmLoading = false;
             llmUnavailable = true;
+            updateAIStatus('error', 'AI: ошибка');
             console.error('❌ Ошибка LLM:', error);
         }
     }
@@ -460,6 +530,12 @@
     function showScreen(screenId) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById(screenId).classList.add('active');
+        // Скрываем индикатор AI на экране победы
+        const aiStatus = document.getElementById('ai-status');
+        if (aiStatus) {
+            if (screenId === 'screen-victory') aiStatus.classList.add('hidden');
+            else aiStatus.classList.remove('hidden');
+        }
     }
 
     function updateProgressBar() {
@@ -547,22 +623,55 @@
         updateCurrentPointCard();
     }
 
-    // ==================== КАМЕРА ====================
+    // ==================== КАМЕРА (ИСПРАВЛЕНА) ====================
     async function initCamera() {
         if (cameraStream && cameraStream.active) return true;
+        
+        // ⚡ ЗАЩИТА: не запускаем дважды одновременно
+        if (cameraInitializing) {
+            console.log('⏳ Камера уже инициализируется...');
+            return false;
+        }
+        cameraInitializing = true;
+
         const video = document.getElementById('camera-preview');
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            alert('Ваш браузер не поддерживает камеру'); return false;
+            alert('Ваш браузер не поддерживает камеру');
+            cameraInitializing = false;
+            return false;
         }
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: { ideal: currentFacingMode }, width: { ideal: 1280 }, height: { ideal: 720 } }
             });
-            cameraStream = stream; video.srcObject = stream; await video.play();
-            cameraPermissionGranted = true; return true;
+            cameraStream = stream;
+            video.srcObject = stream;
+
+            // ⚡ ЗАЩИТА от AbortError: retry через 150 мс
+            try {
+                await video.play();
+            } catch (playErr) {
+                if (playErr.name === 'AbortError') {
+                    console.warn('⚠️ AbortError, повторяю play()...');
+                    await new Promise(r => setTimeout(r, 150));
+                    await video.play();
+                } else {
+                    throw playErr;
+                }
+            }
+
+            cameraPermissionGranted = true;
+            cameraInitializing = false;
+            return true;
         } catch (error) {
             console.error('Ошибка камеры:', error);
-            alert('Не удалось запустить камеру: ' + error.message); return false;
+            cameraInitializing = false;
+            // Не показываем alert на AbortError — это не критично
+            if (error.name !== 'AbortError') {
+                alert('Не удалось запустить камеру: ' + error.message);
+            }
+            return false;
         }
     }
 
@@ -625,6 +734,7 @@
     function releaseCamera() {
         if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
         cameraPermissionGranted = false;
+        cameraInitializing = false;
     }
 
     function showNarzannik(narzannik) {
