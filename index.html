@@ -4,22 +4,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>МифоГрад - Квест по КМВ</title>
+    <!-- WebLLM — опциональная загрузка с fallback. Если не загрузится — игра работает без AI -->
+    <script>
+        (async function loadWebLLM() {
+            if (!('gpu' in navigator)) {
+                console.warn('⚠️ WebGPU не поддерживается, AI отключён');
+                window.dispatchEvent(new Event('webllm-ready'));
+                return;
+            }
+            const sources = [
+                "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.79/+esm",
+                "https://esm.run/@mlc-ai/web-llm"
+            ];
+            for (const url of sources) {
+                try {
+                    window.webllm = await import(url);
+                    console.log('✅ WebLLM загружен с', url);
+                    window.dispatchEvent(new Event('webllm-ready'));
+                    return;
+                } catch (e) {
+                    console.warn('⚠️', url, 'не сработал');
+                }
+            }
+            console.warn('❌ WebLLM недоступен, AI отключён');
+            window.dispatchEvent(new Event('webllm-ready'));
+        })();
+    </script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        /* ==================== ФОН И БАЗА ==================== */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(160deg,
-                #7DD3FC 0%,
-                #BAE6FD 25%,
-                #FEF3C7 55%,
-                #FBCFE8 80%,
-                #C4B5FD 100%);
+            background: linear-gradient(160deg, #7DD3FC 0%, #BAE6FD 25%, #FEF3C7 55%, #FBCFE8 80%, #C4B5FD 100%);
             background-attachment: fixed;
             min-height: 100vh;
             color: #1a2b3c;
@@ -45,1062 +61,212 @@
         }
 
         @keyframes bubbleFloat {
-            0%, 100% { transform: translateY(0)     scale(1);    }
-            50%      { transform: translateY(-22px) scale(1.04); }
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-22px) scale(1.04); }
         }
 
-        .container {
-            position: relative;
-            z-index: 1;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+        .container { position: relative; z-index: 1; max-width: 600px; margin: 0 auto; padding: 20px; }
 
-        /* ==================== ШАПКА ==================== */
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
+        header { text-align: center; margin-bottom: 30px; }
 
         header h1 {
-            font-size: 2.6em;
-            font-weight: 900;
-            letter-spacing: 4px;
-            text-shadow:
-                2px 2px 0 rgba(255,255,255,0.9),
-                4px 4px 20px rgba(139,69,19,0.35);
+            font-size: 2.6em; font-weight: 900; letter-spacing: 4px;
+            text-shadow: 2px 2px 0 rgba(255,255,255,0.9), 4px 4px 20px rgba(139,69,19,0.35);
             background: linear-gradient(45deg, #F59E0B, #EC4899, #8B5CF6, #06B6D4, #F59E0B);
             background-size: 400% 400%;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
             animation: gradientText 8s ease infinite;
             filter: drop-shadow(0 4px 12px rgba(236,72,153,0.25));
         }
 
         @keyframes gradientText {
             0%, 100% { background-position: 0% 50%; }
-            50%      { background-position: 100% 50%; }
+            50% { background-position: 100% 50%; }
         }
 
-        .subtitle {
-            font-size: 0.95em;
-            color: #4B5563;
-            font-weight: 600;
-            text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+        .subtitle { font-size: 0.95em; color: #4B5563; font-weight: 600; text-shadow: 0 1px 2px rgba(255,255,255,0.8); }
+
+        /* ==================== ИНДИКАТОР AI ==================== */
+        .ai-status {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #1a2b3c;
+            box-shadow: 0 4px 15px rgba(139,92,246,0.3);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+            border: 1.5px solid rgba(255,255,255,0.9);
+        }
+        .ai-status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #9CA3AF;
+            transition: background 0.3s;
+        }
+        .ai-status.ready .dot {
+            background: #10B981;
+            box-shadow: 0 0 10px #10B981;
+        }
+        .ai-status.loading .dot {
+            background: #FBBF24;
+            animation: dotPulse 1s infinite;
+        }
+        .ai-status.error .dot {
+            background: #F43F5E;
+        }
+        .ai-status.hidden {
+            display: none !important;
+        }
+        @keyframes dotPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.8); }
         }
 
-        /* ==================== ЭКРАНЫ ==================== */
         .screen { display: none; }
-        .screen.active {
-            display: block;
-            animation: screenIn 0.4s ease;
-        }
-        @keyframes screenIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
+        .screen.active { display: block; animation: screenIn 0.4s ease; }
+        @keyframes screenIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* ==================== КАРТОЧКИ ==================== */
         .card {
             background: rgba(255,255,255,0.88);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border-radius: 24px;
-            padding: 25px;
-            box-shadow:
-                0 8px 32px rgba(139,92,246,0.15),
-                0 2px 8px rgba(0,0,0,0.05),
-                inset 0 1px 0 rgba(255,255,255,0.9);
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            border-radius: 24px; padding: 25px;
+            box-shadow: 0 8px 32px rgba(139,92,246,0.15), 0 2px 8px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.9);
             border: 2px solid rgba(255,255,255,0.95);
             color: #1a2b3c;
         }
 
-        .card h2 {
-            margin-bottom: 15px;
-            text-align: center;
-            background: linear-gradient(45deg, #EC4899, #8B5CF6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            font-weight: 800;
-        }
-
-        .card p {
-            margin-bottom: 20px;
-            line-height: 1.6;
-            color: #374151;
-            font-size: 15px;
-        }
-
+        .card h2 { margin-bottom: 15px; text-align: center; background: linear-gradient(45deg, #EC4899, #8B5CF6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 800; }
+        .card p { margin-bottom: 20px; line-height: 1.6; color: #374151; font-size: 15px; }
         .card strong { color: #7C3AED; }
 
-        /* ==================== КНОПКИ ==================== */
-        .btn-primary, .btn-secondary {
-            padding: 14px 24px;
-            border: none;
-            border-radius: 50px;
-            font-size: 16px;
-            font-weight: 800;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.3s;
-            width: 100%;
-            letter-spacing: 0.5px;
-        }
+        .btn-primary, .btn-secondary { padding: 14px 24px; border: none; border-radius: 50px; font-size: 16px; font-weight: 800; cursor: pointer; transition: transform 0.2s, box-shadow 0.3s; width: 100%; letter-spacing: 0.5px; }
+        .btn-primary { background: linear-gradient(45deg, #FBBF24, #EC4899, #8B5CF6); background-size: 200% 200%; animation: gradientShift 5s ease infinite; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.2); box-shadow: 0 6px 20px rgba(236,72,153,0.35); }
+        .btn-secondary { background: rgba(255,255,255,0.9); color: #7C3AED; border: 2px solid rgba(139,92,246,0.3); font-weight: 700; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(236,72,153,0.5); }
+        .btn-secondary:hover { transform: translateY(-2px); background: linear-gradient(45deg, #FEF3C7, #FBCFE8); box-shadow: 0 6px 20px rgba(139,92,246,0.25); }
+        @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 
-        .btn-primary {
-            background: linear-gradient(45deg, #FBBF24, #EC4899, #8B5CF6);
-            background-size: 200% 200%;
-            animation: gradientShift 5s ease infinite;
-            color: #fff;
-            text-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            box-shadow: 0 6px 20px rgba(236,72,153,0.35);
-        }
+        .route-selector { display: flex; flex-direction: column; gap: 10px; margin: 20px 0; }
+        .route-btn { background: rgba(255,255,255,0.85); border: 2px solid rgba(167,139,250,0.35); border-radius: 60px; padding: 13px; font-size: 15px; font-weight: 700; color: #7C3AED; cursor: pointer; transition: all 0.25s; box-shadow: 0 3px 10px rgba(139,92,246,0.1); }
+        .route-btn.selected { background: linear-gradient(45deg, #FBBF24, #EC4899, #8B5CF6); background-size: 200% 200%; animation: gradientShift 5s ease infinite; border-color: transparent; color: #fff; box-shadow: 0 6px 20px rgba(236,72,153,0.4); text-shadow: 0 1px 3px rgba(0,0,0,0.2); transform: scale(1.02); }
+        .route-btn:hover:not(.selected) { background: linear-gradient(45deg, #FEF3C7, #FBCFE8); transform: scale(1.02); box-shadow: 0 5px 16px rgba(167,139,250,0.3); }
 
-        .btn-secondary {
-            background: rgba(255,255,255,0.9);
-            color: #7C3AED;
-            border: 2px solid rgba(139,92,246,0.3);
-            font-weight: 700;
-        }
+        #btn-main-ar { background: linear-gradient(45deg, #06B6D4, #8B5CF6, #EC4899, #F59E0B, #06B6D4); background-size: 400% 400%; animation: gradientShift 5s ease infinite; color: white; border: 3px solid rgba(255,255,255,0.6); padding: 22px 30px; border-radius: 60px; font-size: 24px; font-weight: 900; cursor: pointer; width: 100%; margin: 20px 0; box-shadow: 0 10px 30px rgba(139,92,246,0.4), 0 4px 15px rgba(6,182,212,0.35), inset 0 2px 0 rgba(255,255,255,0.4); transition: all 0.3s; text-shadow: 0 2px 6px rgba(0,0,0,0.25); letter-spacing: 1px; }
+        #btn-main-ar:hover { transform: scale(1.03) rotate(-0.5deg); box-shadow: 0 14px 40px rgba(139,92,246,0.55), 0 6px 20px rgba(236,72,153,0.4), inset 0 2px 0 rgba(255,255,255,0.5); }
 
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(236,72,153,0.5);
-        }
+        .status-bar { background: rgba(255,255,255,0.75); backdrop-filter: blur(12px); border-radius: 18px; padding: 15px; margin-bottom: 20px; color: #1a2b3c; box-shadow: 0 4px 15px rgba(139,69,19,0.1); border: 2px solid rgba(255,255,255,0.9); }
+        #location-status { font-size: 14px; margin-bottom: 10px; color: #4B5563; font-weight: 600; }
+        .progress-bar { background: rgba(139,92,246,0.15); border-radius: 10px; height: 12px; overflow: hidden; margin-top: 10px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
+        .progress-fill { background: linear-gradient(90deg, #FBBF24, #EC4899, #8B5CF6, #06B6D4, #FBBF24); background-size: 300% 100%; height: 100%; width: 0%; transition: width 0.6s cubic-bezier(.2,.9,.3,1); border-radius: 10px; animation: progressShine 4s linear infinite; box-shadow: 0 0 12px rgba(236,72,153,0.5); }
+        @keyframes progressShine { 0% { background-position: 0% 0; } 100% { background-position: 300% 0; } }
 
-        .btn-secondary:hover {
-            transform: translateY(-2px);
-            background: linear-gradient(45deg, #FEF3C7, #FBCFE8);
-            box-shadow: 0 6px 20px rgba(139,92,246,0.25);
-        }
+        .current-point-card { background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); border-radius: 20px; padding: 20px; margin-bottom: 20px; border-left: 6px solid; border-image: linear-gradient(180deg, #06B6D4, #EC4899, #8B5CF6) 1; box-shadow: 0 8px 28px rgba(139,92,246,0.15); color: #1a2b3c; animation: cardBreathe 5s ease-in-out infinite; }
+        @keyframes cardBreathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 
-        @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-
-        /* ==================== ВЫБОР МАРШРУТА ==================== */
-        .route-selector {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin: 20px 0;
-        }
-
-        .route-btn {
-            background: rgba(255,255,255,0.85);
-            border: 2px solid rgba(167,139,250,0.35);
-            border-radius: 60px;
-            padding: 13px;
-            font-size: 15px;
-            font-weight: 700;
-            color: #7C3AED;
-            cursor: pointer;
-            transition: all 0.25s;
-            box-shadow: 0 3px 10px rgba(139,92,246,0.1);
-        }
-
-        .route-btn.selected {
-            background: linear-gradient(45deg, #FBBF24, #EC4899, #8B5CF6);
-            background-size: 200% 200%;
-            animation: gradientShift 5s ease infinite;
-            border-color: transparent;
-            color: #fff;
-            box-shadow: 0 6px 20px rgba(236,72,153,0.4);
-            text-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            transform: scale(1.02);
-        }
-
-        .route-btn:hover:not(.selected) {
-            background: linear-gradient(45deg, #FEF3C7, #FBCFE8);
-            transform: scale(1.02);
-            box-shadow: 0 5px 16px rgba(167,139,250,0.3);
-        }
-
-        /* ==================== ГЛАВНАЯ КНОПКА AR ==================== */
-        #btn-main-ar {
-            background: linear-gradient(45deg, #06B6D4, #8B5CF6, #EC4899, #F59E0B, #06B6D4);
-            background-size: 400% 400%;
-            animation: gradientShift 5s ease infinite;
-            color: white;
-            border: 3px solid rgba(255,255,255,0.6);
-            padding: 22px 30px;
-            border-radius: 60px;
-            font-size: 24px;
-            font-weight: 900;
-            cursor: pointer;
-            width: 100%;
-            margin: 20px 0;
-            box-shadow:
-                0 10px 30px rgba(139,92,246,0.4),
-                0 4px 15px rgba(6,182,212,0.35),
-                inset 0 2px 0 rgba(255,255,255,0.4);
-            transition: all 0.3s;
-            text-shadow: 0 2px 6px rgba(0,0,0,0.25);
-            letter-spacing: 1px;
-        }
-
-        #btn-main-ar:hover {
-            transform: scale(1.03) rotate(-0.5deg);
-            box-shadow:
-                0 14px 40px rgba(139,92,246,0.55),
-                0 6px 20px rgba(236,72,153,0.4),
-                inset 0 2px 0 rgba(255,255,255,0.5);
-        }
-
-        /* ==================== СТАТУС-БАР ==================== */
-        .status-bar {
-            background: rgba(255,255,255,0.75);
-            backdrop-filter: blur(12px);
-            border-radius: 18px;
-            padding: 15px;
-            margin-bottom: 20px;
-            color: #1a2b3c;
-            box-shadow: 0 4px 15px rgba(139,69,19,0.1);
-            border: 2px solid rgba(255,255,255,0.9);
-        }
-
-        #location-status {
-            font-size: 14px;
-            margin-bottom: 10px;
-            color: #4B5563;
-            font-weight: 600;
-        }
-
-        .progress-bar {
-            background: rgba(139,92,246,0.15);
-            border-radius: 10px;
-            height: 12px;
-            overflow: hidden;
-            margin-top: 10px;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        .progress-fill {
-            background: linear-gradient(90deg, #FBBF24, #EC4899, #8B5CF6, #06B6D4, #FBBF24);
-            background-size: 300% 100%;
-            height: 100%;
-            width: 0%;
-            transition: width 0.6s cubic-bezier(.2,.9,.3,1);
-            border-radius: 10px;
-            animation: progressShine 4s linear infinite;
-            box-shadow: 0 0 12px rgba(236,72,153,0.5);
-        }
-
-        @keyframes progressShine {
-            0%   { background-position:   0% 0; }
-            100% { background-position: 300% 0; }
-        }
-
-        /* ==================== КАРТОЧКА ТОЧКИ ==================== */
-        .current-point-card {
-            background: rgba(255,255,255,0.92);
-            backdrop-filter: blur(12px);
-            border-radius: 20px;
-            padding: 20px;
-            margin-bottom: 20px;
-            border-left: 6px solid;
-            border-image: linear-gradient(180deg, #06B6D4, #EC4899, #8B5CF6) 1;
-            box-shadow: 0 8px 28px rgba(139,92,246,0.15);
-            color: #1a2b3c;
-            animation: cardBreathe 5s ease-in-out infinite;
-        }
-
-        @keyframes cardBreathe {
-            0%, 100% { transform: translateY(0); }
-            50%      { transform: translateY(-4px); }
-        }
-
-        .point-name {
-            font-size: 24px;
-            font-weight: 900;
-            background: linear-gradient(45deg, #EC4899, #8B5CF6, #06B6D4);
-            background-size: 200% 200%;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            animation: gradientText 6s ease infinite;
-            margin-bottom: 12px;
-        }
-
-        .point-description {
-            font-size: 14px;
-            line-height: 1.6;
-            margin-bottom: 12px;
-            color: #4B5563;
-            font-weight: 500;
-        }
-
-        .point-coords {
-            font-size: 12px;
-            font-family: 'Courier New', monospace;
-            background: rgba(139,92,246,0.12);
-            color: #7C3AED;
-            padding: 6px 12px;
-            border-radius: 10px;
-            display: inline-block;
-            margin-top: 5px;
-            font-weight: 600;
-        }
-
-        .distance-info {
-            margin-top: 15px;
-            padding: 12px;
-            background: linear-gradient(135deg, rgba(6,182,212,0.12), rgba(139,92,246,0.12));
-            border-radius: 12px;
-            text-align: center;
-            color: #1a2b3c;
-            border: 1px solid rgba(6,182,212,0.2);
-        }
-
-        .distance-value {
-            font-size: 22px;
-            font-weight: 900;
-            color: #0891B2;
-        }
-
-        .hint {
-            background: linear-gradient(135deg, rgba(251,191,36,0.15), rgba(236,72,153,0.1));
-            border-left: 4px solid #F59E0B;
-            padding: 12px 15px;
-            border-radius: 10px;
-            margin-top: 15px;
-            font-size: 12px;
-            color: #92400E;
-            line-height: 1.5;
-        }
+        .point-name { font-size: 24px; font-weight: 900; background: linear-gradient(45deg, #EC4899, #8B5CF6, #06B6D4); background-size: 200% 200%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: gradientText 6s ease infinite; margin-bottom: 12px; }
+        .point-description { font-size: 14px; line-height: 1.6; margin-bottom: 12px; color: #4B5563; font-weight: 500; }
+        .point-coords { font-size: 12px; font-family: 'Courier New', monospace; background: rgba(139,92,246,0.12); color: #7C3AED; padding: 6px 12px; border-radius: 10px; display: inline-block; margin-top: 5px; font-weight: 600; }
+        .distance-info { margin-top: 15px; padding: 12px; background: linear-gradient(135deg, rgba(6,182,212,0.12), rgba(139,92,246,0.12)); border-radius: 12px; text-align: center; color: #1a2b3c; border: 1px solid rgba(6,182,212,0.2); }
+        .distance-value { font-size: 22px; font-weight: 900; color: #0891B2; }
+        .hint { background: linear-gradient(135deg, rgba(251,191,36,0.15), rgba(236,72,153,0.1)); border-left: 4px solid #F59E0B; padding: 12px 15px; border-radius: 10px; margin-top: 15px; font-size: 12px; color: #92400E; line-height: 1.5; }
         .hint strong { color: #78350F; }
-
         .hidden { display: none !important; }
 
-        /* ==================== КАМЕРА (современный док) ==================== */
-        #camera-container {
-            position: fixed;
-            inset: 0;
-            background: #000;
-            z-index: 10000;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        #camera-preview {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            background: #000;
-            z-index: 1;
-        }
-
-        .camera-top-bar {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            padding: 20px;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.7), rgba(0,0,0,0.3) 60%, transparent);
-            z-index: 10002;
-            pointer-events: none;
-            text-align: center;
-        }
-
-        .camera-instruction-pill {
-            display: inline-block;
-            background: rgba(255,255,255,0.15);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1.5px solid rgba(255,255,255,0.4);
-            color: white;
-            padding: 11px 22px;
-            border-radius: 40px;
-            font-size: 14px;
-            font-weight: 600;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            animation: pillFloat 3s ease-in-out infinite;
-            max-width: 90%;
-            line-height: 1.35;
-            pointer-events: auto;
-        }
-
-        @keyframes pillFloat {
-            0%, 100% { transform: translateY(0); }
-            50%      { transform: translateY(-4px); }
-        }
-
-        .camera-dock {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 30px 40px 40px;
-            background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 50%, transparent);
-            z-index: 10002;
-            gap: 20px;
-        }
-
-        .camera-btn-side {
-            width: 58px;
-            height: 58px;
-            border-radius: 50%;
-            border: 1.5px solid rgba(255,255,255,0.35);
-            background: rgba(255,255,255,0.15);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.25s;
-            color: white;
-            font-size: 22px;
-            flex-shrink: 0;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-
-        .camera-btn-side:hover {
-            transform: scale(1.1);
-            background: rgba(255,255,255,0.25);
-        }
-
+        #camera-container { position: fixed; inset: 0; background: #000; z-index: 10000; display: flex; flex-direction: column; overflow: hidden; }
+        #camera-preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; z-index: 1; }
+        .camera-top-bar { position: absolute; top: 0; left: 0; right: 0; padding: 20px; background: linear-gradient(to bottom, rgba(0,0,0,0.7), rgba(0,0,0,0.3) 60%, transparent); z-index: 10002; pointer-events: none; text-align: center; }
+        .camera-instruction-pill { display: inline-block; background: rgba(255,255,255,0.15); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1.5px solid rgba(255,255,255,0.4); color: white; padding: 11px 22px; border-radius: 40px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 20px rgba(0,0,0,0.3); animation: pillFloat 3s ease-in-out infinite; max-width: 90%; line-height: 1.35; pointer-events: auto; }
+        @keyframes pillFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+        .camera-dock { position: absolute; bottom: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 30px 40px 40px; background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 50%, transparent); z-index: 10002; gap: 20px; }
+        .camera-btn-side { width: 58px; height: 58px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.15); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.25s; color: white; font-size: 22px; flex-shrink: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .camera-btn-side:hover { transform: scale(1.1); background: rgba(255,255,255,0.25); }
         .camera-btn-side:active { transform: scale(0.95); }
-
-        #btn-cancel:hover {
-            background: rgba(244,63,94,0.5);
-            border-color: rgba(244,63,94,0.8);
-            box-shadow: 0 6px 22px rgba(244,63,94,0.5);
-        }
-
-        #btn-flip:hover {
-            background: rgba(139,92,246,0.5);
-            border-color: rgba(139,92,246,0.8);
-            box-shadow: 0 6px 22px rgba(139,92,246,0.5);
-        }
-
-        .camera-btn-capture {
-            position: relative;
-            width: 92px;
-            height: 92px;
-            border-radius: 50%;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            transition: transform 0.15s;
-            flex-shrink: 0;
-        }
-
+        #btn-cancel:hover { background: rgba(244,63,94,0.5); border-color: rgba(244,63,94,0.8); }
+        #btn-flip:hover { background: rgba(139,92,246,0.5); border-color: rgba(139,92,246,0.8); }
+        .camera-btn-capture { position: relative; width: 92px; height: 92px; border-radius: 50%; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: transform 0.15s; flex-shrink: 0; }
         .camera-btn-capture:active { transform: scale(0.9); }
+        .camera-capture-ring { position: absolute; inset: 0; border-radius: 50%; border: 4px solid white; box-shadow: 0 0 0 3px rgba(255,255,255,0.25), 0 8px 30px rgba(236,72,153,0.5), inset 0 0 20px rgba(255,255,255,0.2); animation: capturePulse 2s ease-in-out infinite; }
+        @keyframes capturePulse { 0%, 100% { box-shadow: 0 0 0 3px rgba(255,255,255,0.25), 0 8px 30px rgba(236,72,153,0.5), inset 0 0 20px rgba(255,255,255,0.2); } 50% { box-shadow: 0 0 0 10px rgba(255,255,255,0.1), 0 10px 40px rgba(236,72,153,0.75), inset 0 0 30px rgba(255,255,255,0.35); } }
+        .camera-capture-inner { position: relative; z-index: 2; width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, #FBBF24, #EC4899, #8B5CF6); background-size: 200% 200%; animation: gradientShift 3s ease infinite; display: flex; align-items: center; justify-content: center; font-size: 32px; box-shadow: inset 0 2px 0 rgba(255,255,255,0.4); }
+        .camera-flash { position: fixed; inset: 0; background: white; opacity: 0; pointer-events: none; z-index: 20000; }
+        .camera-flash.fire { animation: flashFire 0.45s ease-out; }
+        @keyframes flashFire { 0% { opacity: 0; } 20% { opacity: 0.95; } 100% { opacity: 0; } }
 
-        .camera-capture-ring {
-            position: absolute;
-            inset: 0;
-            border-radius: 50%;
-            border: 4px solid white;
-            box-shadow:
-                0 0 0 3px rgba(255,255,255,0.25),
-                0 8px 30px rgba(236,72,153,0.5),
-                inset 0 0 20px rgba(255,255,255,0.2);
-            animation: capturePulse 2s ease-in-out infinite;
-        }
+        .ar-character { position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%); width: 220px; height: 220px; cursor: pointer; z-index: 10001; display: flex; align-items: center; justify-content: center; }
+        .ar-hologram { position: absolute; inset: -20px; border-radius: 50%; background: conic-gradient(from 0deg, rgba(6,182,212,0) 0deg, rgba(6,182,212,0.6) 60deg, rgba(139,92,246,0.7) 120deg, rgba(236,72,153,0.6) 180deg, rgba(251,191,36,0.6) 240deg, rgba(6,182,212,0.5) 300deg, rgba(6,182,212,0) 360deg); animation: hologramSpin 4s linear infinite; filter: blur(20px); opacity: 0.9; }
+        @keyframes hologramSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .ar-glow { position: absolute; inset: 10px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(251,191,36,0.4) 40%, transparent 70%); animation: glowPulse 2.4s ease-in-out infinite; filter: blur(15px); }
+        @keyframes glowPulse { 0%, 100% { transform: scale(1); opacity: 0.7; } 50% { transform: scale(1.15); opacity: 1; } }
+        .ar-character img { position: relative; z-index: 2; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 0 20px rgba(6,182,212,0.9)) drop-shadow(0 0 40px rgba(139,92,246,0.7)) drop-shadow(0 0 60px rgba(236,72,153,0.5)); animation: aiReveal 1.2s cubic-bezier(.2,.9,.3,1.2) forwards, aiFloat 3s ease-in-out 1.2s infinite; opacity: 0; transform: scale(0.8); }
+        @keyframes aiReveal { 0% { opacity: 0; transform: scale(0.7); filter: drop-shadow(0 0 40px rgba(6,182,212,1)) brightness(2) blur(8px); } 40% { opacity: 0.6; filter: drop-shadow(0 0 30px rgba(139,92,246,1)) brightness(1.5) blur(3px); } 70% { opacity: 1; filter: drop-shadow(0 0 25px rgba(236,72,153,0.9)) brightness(1.2) blur(0); } 100% { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 20px rgba(6,182,212,0.9)) drop-shadow(0 0 40px rgba(139,92,246,0.7)) drop-shadow(0 0 60px rgba(236,72,153,0.5)); } }
+        @keyframes aiFloat { 0%, 100% { transform: translateY(0) rotate(-0.5deg); } 50% { transform: translateY(-10px) rotate(0.5deg); } }
+        .ar-scanlines { position: absolute; inset: 0; z-index: 3; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0px, transparent 3px, rgba(255,255,255,0.05) 3px, rgba(255,255,255,0.05) 4px); opacity: 0.4; border-radius: 50%; }
+        .ar-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 80px; animation: arLoading 1.2s ease-in-out infinite; filter: drop-shadow(0 0 20px gold); }
+        @keyframes arLoading { 0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.6; } 50% { transform: scale(1.15) rotate(10deg); opacity: 1; } }
 
-        @keyframes capturePulse {
-            0%, 100% {
-                box-shadow:
-                    0 0 0 3px rgba(255,255,255,0.25),
-                    0 8px 30px rgba(236,72,153,0.5),
-                    inset 0 0 20px rgba(255,255,255,0.2);
-            }
-            50% {
-                box-shadow:
-                    0 0 0 10px rgba(255,255,255,0.1),
-                    0 10px 40px rgba(236,72,153,0.75),
-                    inset 0 0 30px rgba(255,255,255,0.35);
-            }
-        }
-
-        .camera-capture-inner {
-            position: relative;
-            z-index: 2;
-            width: 72px;
-            height: 72px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #FBBF24, #EC4899, #8B5CF6);
-            background-size: 200% 200%;
-            animation: gradientShift 3s ease infinite;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 32px;
-            box-shadow: inset 0 2px 0 rgba(255,255,255,0.4);
-        }
-
-        .camera-flash {
-            position: fixed;
-            inset: 0;
-            background: white;
-            opacity: 0;
-            pointer-events: none;
-            z-index: 20000;
-        }
-
-        .camera-flash.fire {
-            animation: flashFire 0.45s ease-out;
-        }
-
-        @keyframes flashFire {
-            0%   { opacity: 0; }
-            20%  { opacity: 0.95; }
-            100% { opacity: 0; }
-        }
-
-        /* ==================== AR ПЕРСОНАЖ (AI-ЭФФЕКТ) ==================== */
-        .ar-character {
-            position: absolute;
-            top: 45%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 220px;
-            height: 220px;
-            cursor: pointer;
-            z-index: 10001;
-            transition: transform 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .ar-character:hover {
-            transform: translate(-50%, -50%) scale(1.06);
-        }
-
-        /* Лучи-голограмма — вращающееся сияние вокруг фигуры */
-        .ar-hologram {
-            position: absolute;
-            inset: -20px;
-            border-radius: 50%;
-            background: conic-gradient(
-                from 0deg,
-                rgba(6,182,212,0)   0deg,
-                rgba(6,182,212,0.6) 60deg,
-                rgba(139,92,246,0.7) 120deg,
-                rgba(236,72,153,0.6) 180deg,
-                rgba(251,191,36,0.6) 240deg,
-                rgba(6,182,212,0.5) 300deg,
-                rgba(6,182,212,0)   360deg
-            );
-            animation: hologramSpin 4s linear infinite;
-            filter: blur(20px);
-            opacity: 0.9;
-        }
-
-        @keyframes hologramSpin {
-            from { transform: rotate(0deg); }
-            to   { transform: rotate(360deg); }
-        }
-
-        /* Внутреннее свечение — тёплое */
-        .ar-glow {
-            position: absolute;
-            inset: 10px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(251,191,36,0.4) 40%, transparent 70%);
-            animation: glowPulse 2.4s ease-in-out infinite;
-            filter: blur(15px);
-        }
-
-        @keyframes glowPulse {
-            0%, 100% { transform: scale(1);    opacity: 0.7; }
-            50%      { transform: scale(1.15); opacity: 1;   }
-        }
-
-        /* Картинка нарзанника — без жёлтого квадрата, с маской */
-        .ar-character img {
-            position: relative;
-            z-index: 2;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            filter:
-                drop-shadow(0 0 20px rgba(6,182,212,0.9))
-                drop-shadow(0 0 40px rgba(139,92,246,0.7))
-                drop-shadow(0 0 60px rgba(236,72,153,0.5));
-            animation: aiReveal 1.2s cubic-bezier(.2,.9,.3,1.2) forwards,
-                       aiFloat 3s ease-in-out 1.2s infinite;
-            opacity: 0;
-            transform: scale(0.8);
-        }
-
-        /* Плавное появление как голограмма */
-        @keyframes aiReveal {
-            0% {
-                opacity: 0;
-                transform: scale(0.7);
-                filter:
-                    drop-shadow(0 0 40px rgba(6,182,212,1))
-                    brightness(2) blur(8px);
-            }
-            40% {
-                opacity: 0.6;
-                filter:
-                    drop-shadow(0 0 30px rgba(139,92,246,1))
-                    brightness(1.5) blur(3px);
-            }
-            70% {
-                opacity: 1;
-                filter:
-                    drop-shadow(0 0 25px rgba(236,72,153,0.9))
-                    brightness(1.2) blur(0);
-            }
-            100% {
-                opacity: 1;
-                transform: scale(1);
-                filter:
-                    drop-shadow(0 0 20px rgba(6,182,212,0.9))
-                    drop-shadow(0 0 40px rgba(139,92,246,0.7))
-                    drop-shadow(0 0 60px rgba(236,72,153,0.5));
-            }
-        }
-
-        @keyframes aiFloat {
-            0%, 100% { transform: translateY(0)     rotate(-0.5deg); }
-            50%      { transform: translateY(-10px) rotate(0.5deg);  }
-        }
-
-        /* Сканирующие линии — как в AR-интерфейсах */
-        .ar-scanlines {
-            position: absolute;
-            inset: 0;
-            z-index: 3;
-            pointer-events: none;
-            background: repeating-linear-gradient(
-                0deg,
-                transparent 0px,
-                transparent 3px,
-                rgba(255,255,255,0.05) 3px,
-                rgba(255,255,255,0.05) 4px
-            );
-            opacity: 0.4;
-            border-radius: 50%;
-            animation: scanShift 8s linear infinite;
-        }
-
-        @keyframes scanShift {
-            from { background-position: 0 0; }
-            to   { background-position: 0 400px; }
-        }
-
-        /* Частицы вокруг фигуры */
-        .ar-particles {
-            position: absolute;
-            inset: -30px;
-            z-index: 1;
-            pointer-events: none;
-        }
-
-        .ar-particles span {
-            position: absolute;
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: radial-gradient(circle, #FBBF24, transparent 70%);
-            animation: particleFloat 3s ease-in-out infinite;
-        }
-
-        .ar-particles span:nth-child(1) { top: 10%; left: 20%; animation-delay: 0s;   }
-        .ar-particles span:nth-child(2) { top: 30%; left: 85%; animation-delay: 0.5s; }
-        .ar-particles span:nth-child(3) { top: 70%; left: 10%; animation-delay: 1s;   }
-        .ar-particles span:nth-child(4) { top: 85%; left: 75%; animation-delay: 1.5s; }
-        .ar-particles span:nth-child(5) { top: 50%; left: 90%; animation-delay: 2s;   }
-        .ar-particles span:nth-child(6) { top: 20%; left: 50%; animation-delay: 2.5s; }
-
-        @keyframes particleFloat {
-            0%, 100% { transform: translateY(0)     scale(1);   opacity: 0.4; }
-            50%      { transform: translateY(-20px) scale(1.4); opacity: 1;   }
-        }
-
-        /* Загрузка */
-        .ar-loading {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 80px;
-            animation: arLoading 1.2s ease-in-out infinite;
-            filter: drop-shadow(0 0 20px gold);
-        }
-
-        @keyframes arLoading {
-            0%, 100% { transform: scale(1)    rotate(0deg);  opacity: 0.6; }
-            50%      { transform: scale(1.15) rotate(10deg); opacity: 1;   }
-        }
-
-        /* ==================== КАРТОЧКА НАРЗАННИКА ==================== */
-        .narzannik-card {
-            background: linear-gradient(135deg, #FEF3C7, #FBCFE8 50%, #DDD6FE);
-            border-radius: 24px;
-            padding: 25px;
-            text-align: center;
-            margin: 20px;
-            animation: slideUp 0.5s ease;
-            box-shadow:
-                0 12px 40px rgba(139,92,246,0.28),
-                0 4px 12px rgba(236,72,153,0.15);
-            color: #1a2b3c;
-            border: 3px solid white;
-        }
-
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(50px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        .narzannik-card h3 {
-            color: #7C3AED;
-            font-size: 1.5em;
-            font-weight: 800;
-            margin-bottom: 8px;
-        }
-
-        .narzannik-card > p {
-            color: #4B5563;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-
-        /* Обновлённая картинка в карточке — без жёлтого фона */
-        .narzannik-image {
-            width: 150px;
-            height: 150px;
-            object-fit: contain;
-            margin: 0 auto 20px;
-            display: block;
-            filter:
-                drop-shadow(0 0 15px rgba(139,92,246,0.7))
-                drop-shadow(0 0 30px rgba(236,72,153,0.5));
-            animation: cardImageReveal 0.9s cubic-bezier(.2,.9,.3,1.2) forwards;
-            opacity: 0;
-            transform: scale(0.85);
-        }
-
-        @keyframes cardImageReveal {
-            0% {
-                opacity: 0;
-                transform: scale(0.8);
-                filter:
-                    drop-shadow(0 0 30px rgba(6,182,212,1))
-                    brightness(1.8) blur(6px);
-            }
-            60% {
-                opacity: 0.8;
-                filter:
-                    drop-shadow(0 0 20px rgba(139,92,246,0.9))
-                    brightness(1.2);
-            }
-            100% {
-                opacity: 1;
-                transform: scale(1);
-                filter:
-                    drop-shadow(0 0 15px rgba(139,92,246,0.7))
-                    drop-shadow(0 0 30px rgba(236,72,153,0.5));
-            }
-        }
-
-        .narzannik-emoji {
-            font-size: 80px;
-            margin-bottom: 15px;
-        }
-
-        .narzannik-info {
-            background: rgba(255,255,255,0.75);
-            border-radius: 14px;
-            padding: 15px;
-            margin: 15px 0;
-            text-align: left;
-            color: #1a2b3c;
-            border: 1px solid rgba(139,92,246,0.15);
-            font-size: 14px;
-        }
-
+        .narzannik-card { background: linear-gradient(135deg, #FEF3C7, #FBCFE8 50%, #DDD6FE); border-radius: 24px; padding: 25px; text-align: center; margin: 20px; animation: slideUp 0.5s ease; box-shadow: 0 12px 40px rgba(139,92,246,0.28), 0 4px 12px rgba(236,72,153,0.15); color: #1a2b3c; border: 3px solid white; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(50px); } to { opacity: 1; transform: translateY(0); } }
+        .narzannik-card h3 { color: #7C3AED; font-size: 1.5em; font-weight: 800; margin-bottom: 8px; }
+        .narzannik-card > p { color: #4B5563; font-size: 14px; line-height: 1.5; }
+        .narzannik-image { width: 150px; height: 150px; object-fit: contain; margin: 0 auto 20px; display: block; filter: drop-shadow(0 0 15px rgba(139,92,246,0.7)) drop-shadow(0 0 30px rgba(236,72,153,0.5)); animation: cardImageReveal 0.9s cubic-bezier(.2,.9,.3,1.2) forwards; opacity: 0; transform: scale(0.85); }
+        @keyframes cardImageReveal { 0% { opacity: 0; transform: scale(0.8); filter: drop-shadow(0 0 30px rgba(6,182,212,1)) brightness(1.8) blur(6px); } 60% { opacity: 0.8; filter: drop-shadow(0 0 20px rgba(139,92,246,0.9)) brightness(1.2); } 100% { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 15px rgba(139,92,246,0.7)) drop-shadow(0 0 30px rgba(236,72,153,0.5)); } }
+        .narzannik-emoji { font-size: 80px; margin-bottom: 15px; }
+        .narzannik-info { background: rgba(255,255,255,0.75); border-radius: 14px; padding: 15px; margin: 15px 0; text-align: left; color: #1a2b3c; border: 1px solid rgba(139,92,246,0.15); font-size: 14px; }
         .narzannik-info strong { color: #7C3AED; }
 
-        /* ==================== ПОДВАЛ ==================== */
-        footer {
-            text-align: center;
-            margin-top: 30px;
-            font-size: 12px;
-            color: #6B7280;
-            font-weight: 500;
-        }
+        footer { text-align: center; margin-top: 30px; font-size: 12px; color: #6B7280; font-weight: 500; }
 
-        /* ==================== ГОЛОСОВОЙ ПОМОЩНИК ==================== */
-        .voice-helper {
-            margin-top: 18px;
-            padding: 20px 15px;
-            background: linear-gradient(135deg, rgba(254,243,199,0.95), rgba(251,207,232,0.9));
-            border-radius: 20px;
-            border: 2px solid rgba(255,255,255,0.95);
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 6px 20px rgba(139,69,19,0.1);
-        }
-
-        .voice-helper::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: radial-gradient(circle at 50% 0%, rgba(255,215,0,0.25), transparent 70%);
-            pointer-events: none;
-        }
-
-        .voice-helper-title {
-            font-size: 12px;
-            letter-spacing: 1.5px;
-            margin-bottom: 14px;
-            text-transform: uppercase;
-            color: #7C3AED;
-            font-weight: 800;
-            position: relative;
-            z-index: 1;
-        }
-
-        .voice-mic-btn {
-            position: relative;
-            width: 90px;
-            height: 90px;
-            border-radius: 50%;
-            border: 4px solid white;
-            background: linear-gradient(135deg, #FBBF24, #EC4899, #8B5CF6);
-            background-size: 200% 200%;
-            animation: gradientShift 4s ease infinite;
-            color: #fff;
-            font-size: 36px;
-            cursor: pointer;
-            box-shadow:
-                0 8px 25px rgba(236,72,153,0.45),
-                inset 0 2px 0 rgba(255,255,255,0.5);
-            transition: transform 0.25s, box-shadow 0.25s;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1;
-        }
-
-        .voice-mic-btn:hover {
-            transform: scale(1.08);
-            box-shadow: 0 12px 35px rgba(236,72,153,0.65);
-        }
-
+        .voice-helper { margin-top: 18px; padding: 20px 15px; background: linear-gradient(135deg, rgba(254,243,199,0.95), rgba(251,207,232,0.9)); border-radius: 20px; border: 2px solid rgba(255,255,255,0.95); text-align: center; position: relative; overflow: hidden; box-shadow: 0 6px 20px rgba(139,69,19,0.1); }
+        .voice-helper-title { font-size: 12px; letter-spacing: 1.5px; margin-bottom: 14px; text-transform: uppercase; color: #7C3AED; font-weight: 800; }
+        .voice-mic-btn { position: relative; width: 90px; height: 90px; border-radius: 50%; border: 4px solid white; background: linear-gradient(135deg, #FBBF24, #EC4899, #8B5CF6); background-size: 200% 200%; animation: gradientShift 4s ease infinite; color: #fff; font-size: 36px; cursor: pointer; box-shadow: 0 8px 25px rgba(236,72,153,0.45), inset 0 2px 0 rgba(255,255,255,0.5); transition: transform 0.25s, box-shadow 0.25s; display: inline-flex; align-items: center; justify-content: center; }
+        .voice-mic-btn:hover { transform: scale(1.08); box-shadow: 0 12px 35px rgba(236,72,153,0.65); }
         .voice-mic-btn:active { transform: scale(0.96); }
-
-        .voice-mic-btn.listening {
-            background: linear-gradient(135deg, #f44336, #e91e63);
-            animation: micPulse 1.4s ease-in-out infinite;
-            box-shadow:
-                0 0 0 8px  rgba(244,67,54,0.35),
-                0 0 0 18px rgba(244,67,54,0.15),
-                0 8px 25px rgba(236,72,153,0.5);
-        }
-
-        @keyframes micPulse {
-            0%   { box-shadow: 0 0 0 0   rgba(244,67,54,0.75); }
-            70%  { box-shadow: 0 0 0 28px rgba(244,67,54,0);   }
-            100% { box-shadow: 0 0 0 0   rgba(244,67,54,0);   }
-        }
-
-        .voice-hint-text {
-            margin-top: 14px;
-            font-size: 12px;
-            color: #7C3AED;
-            font-weight: 600;
-            font-style: italic;
-            min-height: 16px;
-            position: relative;
-            z-index: 1;
-        }
-
-        .voice-hint-text.recognized {
-            color: #EC4899;
-            font-style: normal;
-            font-weight: 800;
-            font-size: 13px;
-        }
-
-        .voice-waves {
-            display: inline-flex;
-            gap: 4px;
-            align-items: center;
-            margin-left: 12px;
-            height: 40px;
-            vertical-align: middle;
-        }
-
-        .voice-waves span {
-            display: block;
-            width: 4px;
-            background: linear-gradient(180deg, #EC4899, #8B5CF6);
-            border-radius: 2px;
-            opacity: 0;
-        }
-
-        .voice-helper.is-listening .voice-waves span {
-            animation: wave 1s infinite ease-in-out;
-            opacity: 1;
-        }
+        .voice-mic-btn.listening { background: linear-gradient(135deg, #f44336, #e91e63); animation: micPulse 1.4s ease-in-out infinite; box-shadow: 0 0 0 8px rgba(244,67,54,0.35), 0 0 0 18px rgba(244,67,54,0.15); }
+        @keyframes micPulse { 0% { box-shadow: 0 0 0 0 rgba(244,67,54,0.75); } 70% { box-shadow: 0 0 0 28px rgba(244,67,54,0); } 100% { box-shadow: 0 0 0 0 rgba(244,67,54,0); } }
+        .voice-hint-text { margin-top: 14px; font-size: 12px; color: #7C3AED; font-weight: 600; font-style: italic; min-height: 16px; }
+        .voice-hint-text.recognized { color: #EC4899; font-style: normal; font-weight: 800; font-size: 13px; }
+        .voice-waves { display: inline-flex; gap: 4px; align-items: center; margin-left: 12px; height: 40px; vertical-align: middle; }
+        .voice-waves span { display: block; width: 4px; background: linear-gradient(180deg, #EC4899, #8B5CF6); border-radius: 2px; opacity: 0; }
+        .voice-helper.is-listening .voice-waves span { animation: wave 1s infinite ease-in-out; opacity: 1; }
         .voice-helper.is-listening .voice-waves span:nth-child(2) { animation-delay: .1s; }
         .voice-helper.is-listening .voice-waves span:nth-child(3) { animation-delay: .2s; }
         .voice-helper.is-listening .voice-waves span:nth-child(4) { animation-delay: .3s; }
         .voice-helper.is-listening .voice-waves span:nth-child(5) { animation-delay: .4s; }
-
-        @keyframes wave {
-            0%, 100% { height: 8px; }
-            50%      { height: 32px; }
-        }
-
-        .voice-examples {
-            margin-top: 12px;
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            justify-content: center;
-            position: relative;
-            z-index: 1;
-        }
-
-        .voice-example-btn {
-            background: rgba(255,255,255,0.9);
-            border: 1.5px solid rgba(139,92,246,0.35);
-            color: #7C3AED;
-            border-radius: 20px;
-            padding: 7px 13px;
-            font-size: 11px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.25s;
-            font-family: inherit;
-        }
-
-        .voice-example-btn:hover {
-            background: linear-gradient(45deg, #EC4899, #8B5CF6);
-            color: white;
-            transform: scale(1.06);
-            box-shadow: 0 4px 12px rgba(236,72,153,0.35);
-            border-color: transparent;
-        }
-        .voice-example-btn:active { transform: scale(0.95); }
-
-        .narzannik-speech-bubble {
-            position: relative;
-            background: linear-gradient(135deg, #fff, #FEF3C7);
-            color: #1a2b3c;
-            border-radius: 20px;
-            padding: 16px 20px;
-            margin: 18px 0 26px;
-            font-size: 14px;
-            line-height: 1.6;
-            text-align: left;
-            box-shadow: 0 10px 28px rgba(139,92,246,0.2);
-            animation: bubbleIn 0.45s cubic-bezier(.2,.9,.3,1.2);
-            border-left: 5px solid #8B5CF6;
-            font-weight: 500;
-        }
-
-        .narzannik-speech-bubble::after {
-            content: '';
-            position: absolute;
-            bottom: -12px;
-            left: 32px;
-            border: 12px solid transparent;
-            border-top-color: #FEF3C7;
-            border-bottom: 0;
-        }
-
-        @keyframes bubbleIn {
-            from { opacity: 0; transform: translateY(-12px) scale(0.95); }
-            to   { opacity: 1; transform: translateY(0)     scale(1);    }
-        }
-
-        .narzannik-speech-bubble.speaking {
-            border-left-color: #10B981;
-            box-shadow: 0 10px 30px rgba(16,185,129,0.3);
-        }
-
-        .narzannik-speech-bubble.speaking::before {
-            content: '';
-            position: absolute;
-            top: 12px;
-            right: 14px;
-            width: 8px; height: 8px;
-            background: #10B981;
-            border-radius: 50%;
-            animation: micPulse 1s infinite;
-        }
-
-        .voice-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 18px;
-            flex-wrap: wrap;
-        }
-
-        .voice-actions button {
-            flex: 1;
-            min-width: 140px;
-            padding: 12px 16px;
-            border-radius: 30px;
-            border: none;
-            font-size: 13px;
-            font-weight: 800;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .voice-actions button:active { transform: scale(0.97); }
-
-        .btn-voice-repeat {
-            background: linear-gradient(45deg, #06B6D4, #8B5CF6);
-            color: #fff;
-            box-shadow: 0 5px 15px rgba(139,92,246,0.35);
-        }
-
-        .btn-voice-repeat:hover {
-            box-shadow: 0 8px 22px rgba(139,92,246,0.5);
-            transform: translateY(-2px);
-        }
-
-        .btn-voice-stop {
-            background: rgba(255,255,255,0.9);
-            color: #EC4899;
-            border: 2px solid rgba(236,72,153,0.4) !important;
-        }
-
-        .btn-voice-stop:hover {
-            background: linear-gradient(45deg, #FBCFE8, #FEF3C7);
-            transform: translateY(-2px);
-        }
-
-        .narzannik-card.speaking .narzannik-image {
-            animation: speakingBounce 1.6s ease-in-out infinite;
-        }
-        @keyframes speakingBounce {
-            0%, 100% { transform: translateY(0)    scale(1);    }
-            50%      { transform: translateY(-8px) scale(1.04); }
-        }
+        @keyframes wave { 0%, 100% { height: 8px; } 50% { height: 32px; } }
+        .voice-examples { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+        .voice-example-btn { background: rgba(255,255,255,0.9); border: 1.5px solid rgba(139,92,246,0.35); color: #7C3AED; border-radius: 20px; padding: 7px 13px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.25s; font-family: inherit; }
+        .voice-example-btn:hover { background: linear-gradient(45deg, #EC4899, #8B5CF6); color: white; transform: scale(1.06); border-color: transparent; }
+        .narzannik-speech-bubble { position: relative; background: linear-gradient(135deg, #fff, #FEF3C7); color: #1a2b3c; border-radius: 20px; padding: 16px 20px; margin: 18px 0 26px; font-size: 14px; line-height: 1.6; text-align: left; box-shadow: 0 10px 28px rgba(139,92,246,0.2); animation: bubbleIn 0.45s cubic-bezier(.2,.9,.3,1.2); border-left: 5px solid #8B5CF6; font-weight: 500; }
+        .narzannik-speech-bubble::after { content: ''; position: absolute; bottom: -12px; left: 32px; border: 12px solid transparent; border-top-color: #FEF3C7; border-bottom: 0; }
+        @keyframes bubbleIn { from { opacity: 0; transform: translateY(-12px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .narzannik-speech-bubble.speaking { border-left-color: #10B981; }
+        .narzannik-speech-bubble.speaking::before { content: ''; position: absolute; top: 12px; right: 14px; width: 8px; height: 8px; background: #10B981; border-radius: 50%; animation: micPulse 1s infinite; }
+        .voice-actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+        .voice-actions button { flex: 1; min-width: 140px; padding: 12px 16px; border-radius: 30px; border: none; font-size: 13px; font-weight: 800; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .btn-voice-repeat { background: linear-gradient(45deg, #06B6D4, #8B5CF6); color: #fff; box-shadow: 0 5px 15px rgba(139,92,246,0.35); }
+        .btn-voice-stop { background: rgba(255,255,255,0.9); color: #EC4899; border: 2px solid rgba(236,72,153,0.4) !important; }
+        .narzannik-card.speaking .narzannik-image { animation: speakingBounce 1.6s ease-in-out infinite; }
+        @keyframes speakingBounce { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-8px) scale(1.04); } }
     </style>
 </head>
 <body>
+    <!-- ⚡ Индикатор загрузки AI (правый верхний угол) -->
+    <div class="ai-status" id="ai-status">
+        <span class="dot"></span>
+        <span id="ai-status-text">AI: ожидание</span>
+    </div>
+
     <div class="container">
         <header>
             <h1>МИФОГРАД</h1>
@@ -1111,7 +277,7 @@
             <div id="screen-welcome" class="screen active">
                 <div class="card">
                     <h2>🏛️ Найди духов города</h2>
-                    <p>Каждая достопримечательность хранит своего духа-нарзанника. Наведи камеру, найди персонажа и пополняй коллекцию! А ещё — можешь <strong>поговорить с нарзанником голосом</strong>: скажи «расскажи мне об этом месте», «кто ты», «куда идти» или «расскажи секрет».</p>
+                    <p>Каждая достопримечательность хранит своего духа-нарзанника. Наведи камеру, найди персонажа и пополняй коллекцию! А ещё — можешь <strong>поговорить с нарзанником голосом</strong>.</p>
                     <div class="route-selector">
                         <button class="route-btn" data-route="pyatigorsk">🏔️ Тропой Лермонтова (Пятигорск) — 6 точек</button>
                         <button class="route-btn" data-route="kislovodsk">💎 Нарзанная Симфония (Кисловодск) — 5 точек</button>
@@ -1126,9 +292,7 @@
             <div id="screen-game" class="screen">
                 <div class="status-bar">
                     <div id="location-status">📍 Определяем местоположение...</div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progress-fill"></div>
-                    </div>
+                    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
                 </div>
 
                 <div id="current-point-card" class="current-point-card hidden">
@@ -1143,15 +307,9 @@
 
                     <div class="voice-helper" id="voice-helper">
                         <div class="voice-helper-title">🎙️ Спросите нарзанника</div>
-                        <button class="voice-mic-btn" id="btn-voice"
-                                aria-label="Голосовой ввод"
-                                title="Скажите: Расскажи мне об этом месте">🎤</button>
-                        <div class="voice-waves">
-                            <span></span><span></span><span></span><span></span><span></span>
-                        </div>
-                        <div class="voice-hint-text" id="voice-hint">
-                            Скажите: «Расскажи мне об этом месте»
-                        </div>
+                        <button class="voice-mic-btn" id="btn-voice" aria-label="Голосовой ввод">🎤</button>
+                        <div class="voice-waves"><span></span><span></span><span></span><span></span><span></span></div>
+                        <div class="voice-hint-text" id="voice-hint">Скажите: «Расскажи мне об этом месте»</div>
                         <div class="voice-examples">
                             <button class="voice-example-btn" data-phrase="расскажи о месте">💬 Расскажи о месте</button>
                             <button class="voice-example-btn" data-phrase="кто ты">💬 Кто ты?</button>
@@ -1166,30 +324,18 @@
 
                 <div id="camera-container" class="hidden">
                     <video id="camera-preview" autoplay playsinline></video>
-
                     <div class="camera-top-bar">
-                        <div class="camera-instruction-pill" id="ar-instruction">
-                            🔍 Наведи камеру на достопримечательность
-                        </div>
+                        <div class="camera-instruction-pill" id="ar-instruction">🔍 Наведи камеру на достопримечательность</div>
                     </div>
-
                     <div id="ar-character-overlay" class="hidden ar-character"></div>
-
                     <div class="camera-dock">
-                        <button class="camera-btn-side" id="btn-cancel" aria-label="Отмена">
-                            <span>✕</span>
-                        </button>
-
+                        <button class="camera-btn-side" id="btn-cancel" aria-label="Отмена"><span>✕</span></button>
                         <button class="camera-btn-capture" id="btn-take-photo" aria-label="Поймать нарзанника">
                             <span class="camera-capture-ring"></span>
                             <span class="camera-capture-inner">📸</span>
                         </button>
-
-                        <button class="camera-btn-side" id="btn-flip" aria-label="Сменить камеру">
-                            <span>🔄</span>
-                        </button>
+                        <button class="camera-btn-side" id="btn-flip" aria-label="Сменить камеру"><span>🔄</span></button>
                     </div>
-
                     <div class="camera-flash" id="camera-flash"></div>
                 </div>
 
@@ -1203,14 +349,11 @@
                             <p><strong>Тип:</strong> <span id="narzannik-type">Тип</span></p>
                             <p><strong>Способность:</strong> <span id="narzannik-ability">Способность</span></p>
                         </div>
-
                         <div id="narzannik-speech-bubble" class="narzannik-speech-bubble hidden"></div>
-
                         <div class="voice-actions">
                             <button class="btn-voice-repeat" id="btn-repeat-story">🔊 Рассказать голосом</button>
-                            <button class="btn-voice-stop"   id="btn-stop-speech">⏹ Остановить</button>
+                            <button class="btn-voice-stop" id="btn-stop-speech">⏹ Остановить</button>
                         </div>
-
                         <button id="btn-continue" class="btn-primary" style="margin-top: 15px;">➡️ К СЛЕДУЮЩЕЙ ТОЧКЕ</button>
                     </div>
                 </div>
@@ -1236,1027 +379,677 @@
         </main>
         <footer><p>МифоГрад · Квесты по КМВ · 2024</p></footer>
     </div>
+
 <script>
-        // ==================== ДАННЫЕ МАРШРУТОВ ====================
-        const ROUTES = {
-            pyatigorsk: {
-                name: "Тропой Лермонтова (Пятигорск)",
-                points: [
-                    { id: 1, order:1, name: "Пятигорский государственный университет", shortName:"ПГУ", description:"🎓 Современная точка притяжения знаний. Здесь оживают литературные традиции.", coordinates:{lat:44.045267,lng:43.061297}, radius_m:100, hint:"Улица Калинина, 9. Ищите главный корпус с колоннами.", narzannik:{
-                        id:1, name:"Профессор Знаев", image:"images/professor.png", type:"Академический дух",
-                        greeting_text:"Я Профессор Знаев. Знания — ключ к тайнам Пятигорска!",
-                        ability_name:"Знание — сила", ability_description:"Открывает подсказки к следующей точке.",
-                        story:"Добро пожаловать в альма-матер, путник. Пятигорский государственный университет — один из старейших в регионе. Здесь изучают не только науки, но и историю родного края, литературу Кавказа. Именно в этих стенах бережно хранят наследие Лермонтова, Толстого и Пушкина — все они бывали на Водах. Каждый студент, переступая порог, становится частью большой истории. А теперь и ты — часть её.",
-                        secret: "В библиотеке есть редкие книги XIX века. Если попросишь — покажу.",
-                        age: "Университету больше восьмидесяти лет. Он вырос из педагогического института.",
-                        voicePitch: 1.05, voiceRate: 0.95 } },
-                    { id: 2, order:2, name: "Грот Дианы", shortName:"Грот Дианы", description:"🏛️ Романтический грот 1829 года. Здесь Лермонтов вдохновлялся перед дуэлью.", coordinates:{lat:44.03581,lng:43.08177}, radius_m:50, hint:"Парк Цветник, у подножия Машука.", narzannik:{
-                        id:2, name:"Гротик", image:"images/grotik.png", type:"Каменный дух",
-                        greeting_text:"Тсс, я слышу эхо бала 1841 года!",
-                        ability_name:"Каменная память", ability_description:"Находит старые надписи на камнях.",
-                        story:"Слушай же, путник. Этот грот был вырублен в скале в 1829 году братьями Бернардацци — итальянскими архитекторами, которые построили почти весь старый Пятигорск. Внутри грота устраивали балы. В июле 1841 года, за несколько дней до своей гибели на дуэли, Михаил Лермонтов был здесь вместе с друзьями. Он танцевал, шутил — и никто не знал, что жить ему осталось меньше недели. Приложи руку к камню: стены помнят тепло тех свечей.",
-                        secret: "Есть поверье: обойди грот трижды по солнцу и загадай желание — сбудется.",
-                        age: "Мне почти двести лет. Я видел, как строился этот грот.",
-                        voicePitch: 0.85, voiceRate: 0.9 } },
-                    { id: 3, order:3, name: "Академическая галерея", shortName:"Галерея", description:"💧 Первая питьевая галерея 1848 года. Аристократы пили целебную воду.", coordinates:{lat:44.04004,lng:43.08811}, radius_m:50, hint:"Центр парка Цветник, белое здание с колоннами.", narzannik:{
-                        id:3, name:"Елизавет", image:"images/elizavet.png", type:"Водный дух",
-                        greeting_text:"Испей нарзана — обретешь мудрость.",
-                        ability_name:"Аура источника", ability_description:"Увеличивает шанс найти редкого духа.",
-                        story:"В 1848 году здесь открылась первая питьевая галерея на Кавказских Минеральных Водах. Сюда приходили за водой и здоровьем: важно шествовали дамы в платьях, прогуливались офицеры, спорили о литературе. Именно эту галерею описывал Лермонтов в «Герое нашего времени» — здесь Печорин встречал княжну Мери. Вода, которую ты пьёшь сейчас, — та же самая, что пили они. Сделай глоток и ощути вкус эпохи.",
-                        secret: "Вода из этого источника особенно полезна утром, натощак.",
-                        age: "Галерея открыта в 1848 году. С тех пор здесь не прекращается поток гостей.",
-                        voicePitch: 1.2, voiceRate: 1.0 } },
-                    { id: 4, order:4, name: "Грот Лермонтова", shortName:"Грот Л.", description:"🌫️ Любимое убежище поэта. Здесь сидел Печорин.", coordinates:{lat:44.04222,lng:43.08639}, radius_m:50, hint:"Восточная часть парка Цветник.", narzannik:{
-                        id:4, name:"Калипсо", image:"images/kalipso.png", type:"Теневой дух",
-                        greeting_text:"Моя тень хранит секреты.",
-                        ability_name:"Теневой покров", ability_description:"Помогает скрываться в нужный момент.",
-                        story:"Это место Лермонтов любил больше всего в Пятигорске. Он приходил сюда один, садился на каменный выступ и смотрел на город и горы. В романе «Герой нашего времени» именно здесь Печорин размышлял о судьбе, о любви и о смысле жизни. В этом гроте рождались строки, которые стали бессмертными. Посмотри на свет, что падает через вход, — он и тогда был такой же. Поэт видел его тем же взглядом, что и ты.",
-                        secret: "Если войти в грот на закате, тень поэта появляется на стене.",
-                        age: "Мне столько же лет, сколько этой скале. А скала помнит ещё древние времена.",
-                        voicePitch: 0.95, voiceRate: 0.85 } },
-                    { id: 5, order:5, name: "Эолова Арфа", shortName:"Арфа", description:"🎐 Павильон 1828 года. В ветреную погоду слышна музыка ветра.", coordinates:{lat:44.04500,lng:43.08972}, radius_m:50, hint:"Склон горы Горячей над парком.", narzannik:{
-                        id:5, name:"Эолик", image:"images/eolik.png", type:"Воздушный дух",
-                        greeting_text:"Прислушайся к ветру!",
-                        ability_name:"Голос ветра", ability_description:"Ускоряет поиск следующей точки.",
-                        story:"Эолова арфа построена в 1828 году теми же братьями Бернардацци. Внутри беседки стояла настоящая арфа — деревянный корпус с двумя струнами, которые звучали от ветра. В тихую погоду арфа молчала, а в ветреную издавала таинственные мелодии. По преданию, эти звуки навевали Лермонтову стихи. Эол — древнегреческий повелитель ветров — сам будто играл на ней, спускаясь с Машука. Закрой глаза и прислушайся: ветер всё ещё поёт.",
-                        secret: "В ветреный день арфа издаёт семь разных нот — по числу ветров Кавказа.",
-                        age: "Мне скоро двести лет. Я старше многих зданий города.",
-                        voicePitch: 1.15, voiceRate: 1.05 } },
-                    { id: 6, order:6, name: "Провал", shortName:"Провал", description:"💎 Карстовое озеро с бирюзовой водой. Знаменито по 'Двенадцати стульям'.", coordinates:{lat:44.04361,lng:43.09194}, radius_m:50, hint:"Восточный склон горы Машук.", narzannik:{
-                        id:6, name:"Провалёныш", image:"images/provalenysh.png", type:"Легендарный дух",
-                        greeting_text:"Ты дошел до тайны гор!",
-                        ability_name:"Хранитель тайн", ability_description:"Открывает секретные места.",
-                        story:"Провал — это карстовая воронка глубиной двадцать метров, на дне которой лежит озеро с бирюзовой водой. Температура воды здесь всегда около пятнадцати градусов. В 1858 году к озеру пробили тоннель, и с тех пор каждый может спуститься к воде. В 1931 году Ильф и Петров описали Провал в «Двенадцати стульях», а Остап Бендер продавал здесь билеты — и это сделало место знаменитым на всю страну. Говорят, кто искупается в этой воде, обретёт здоровье на год вперёд.",
-                        secret: "В глубине озера есть второй ярус — подземная пещера. Туда не пускают туристов.",
-                        age: "Провал образовался много тысяч лет назад. Я существую с тех самых пор.",
-                        voicePitch: 1.0, voiceRate: 0.92 } }
-                ]},
-            kislovodsk: {
-                name: "Нарзанная Симфония (Кисловодск)",
-                points: [
-                    { id:101, order:1, name: "Кисловодский нарзанный бювет", shortName:"Нарзанный", description:"⛲ Главный источник нарзана. Вода с древних времен славится целебной силой.", coordinates:{lat:43.9053,lng:42.7168}, radius_m:80, hint:"Курортный бульвар, центральный бювет.", narzannik:{
-                        id:101, name:"Нарзан-батыр", image:"images/narzan.png", type:"Целитель",
-                        greeting_text:"Я Нарзан-батыр! Моя вода исцеляет тело и дух.",
-                        ability_name:"Сила источника", ability_description:"Восстанавливает энергию после долгого пути.",
-                        story:"Кисловодский нарзан известен с глубокой древности. Ещё нарты — легендарные богатыри Кавказа — пили эту воду и обретали силу. В 1803 году здесь основали курорт, и с тех пор нарзан стал символом здоровья. Вода с уникальным составом, с пузырьками природного газа, бьёт из-под земли уже тысячи лет. Каждый, кто выпьет хотя бы глоток, чувствует прилив бодрости. Попробуй и ты — говорят, нарзан исполняет желания тех, кто приходит к источнику с чистым сердцем.",
-                        secret: "Если трижды набрать воду на рассвете и выпить с благодарностью — сбудутся три желания.",
-                        age: "Источнику больше тысячи лет. Курорту — с 1803 года.",
-                        voicePitch: 0.9, voiceRate: 0.95 } },
-                    { id:102, order:2, name: "Курортный парк", shortName:"Парк", description:"🌳 Один из крупнейших парков Европы. Тенистые аллеи и лабиринты.", coordinates:{lat:43.9088,lng:42.7211}, radius_m:100, hint:"Вход от нарзанной галереи.", narzannik:{
-                        id:102, name:"Лиса", image:"images/lisa.png", type:"Природный дух",
-                        greeting_text:"Я хранитель этих деревьев. Чувствуешь свежесть?",
-                        ability_name:"Шепот листвы", ability_description:"Подсказывает кратчайший путь в парке.",
-                        story:"Этот парк — один из крупнейших в Европе. Здесь растут редкие породы деревьев: кедры, тиссы, магнолии. Тенистые аллеи тянутся на десятки километров, а воздух пропитан ароматом хвои и цветов. По преданию, в этих аллеях гуляли Пушкин, Лермонтов, Толстой, Шаляпин. Каждая тропинка помнит шаги великих. А ещё, говорят, если заблудиться в лабиринтах парка в сумерках — можно встретить настоящую лису, которая покажет дорогу.",
-                        secret: "В полночь слышно, как деревья шепчутся. Они помнят всех, кто гулял здесь.",
-                        age: "Парку больше двухсот лет. Он старше самого города.",
-                        voicePitch: 1.1, voiceRate: 1.0 } },
-                    { id:103, order:3, name: "Замок коварства и любви", shortName:"Замок", description:"🏰 Скальный останец причудливой формы. Легенда о несчастной любви.", coordinates:{lat:43.9115,lng:42.7279}, radius_m:60, hint:"Средняя часть Курортного парка, скала.", narzannik:{
-                        id:103, name:"Эхо", image:"images/eha.png", type:"Эховый дух",
-                        greeting_text:"Крикни — и услышишь ответ веков.",
-                        ability_name:"Эхо памяти", ability_description:"Позволяет вспомнить забытые легенды.",
-                        story:"Этот скальный останец называют Замком коварства и любви. Легенда гласит: жил здесь князь, который влюбился в простую девушку. Но она полюбила пастуха. Князь, обезумев от ревности, заточил девушку в скале. Пастух погиб, пытаясь её спасти, а девушка от горя превратилась в камень. С тех пор, если приложить ухо к скале в ветреную погоду, можно услышать её плач. Люди верят: кто расскажет эту историю искренне — того минует несчастная любовь.",
-                        secret: "Крикни своё имя у скалы — эхо ответит голосом того, кто тебя любит.",
-                        age: "Скале тысячи лет. Легенде — около века.",
-                        voicePitch: 0.9, voiceRate: 0.88 } },
-                    { id:104, order:4, name: "Красное солнышко", shortName:"Солнышко", description:"☀️ Смотровая площадка с панорамой на горы. Место силы.", coordinates:{lat:43.9152,lng:42.7314}, radius_m:50, hint:"Верхняя часть парка, дощатая беседка.", narzannik:{
-                        id:104, name:"Светозар", image:"images/svetozar.png", type:"Солнечный дух",
-                        greeting_text:"Светозар приветствует тебя! Отсюда видно всю красоту Кавказа.",
-                        ability_name:"Солнечный луч", ability_description:"Освещает скрытые тропы.",
-                        story:"Смотровая площадка «Красное солнышко» — место, откуда открывается панорама на Эльбрус и весь Кавказский хребет. В ясный день видно сразу пять вершин-пятитысячников. Здесь встречают рассветы и провожают закаты. Говорят, если встать на этом месте на рассвете, когда первые лучи касаются Эльбруса, и загадать желание — оно обязательно сбудется. Солнце здесь особенное: оно освещает путь даже тем, кто потерял дорогу в жизни.",
-                        secret: "Первый луч солнца здесь приносит удачу на весь день. Поймай его ладонью.",
-                        age: "Площадку построили в XX веке, но само место было священным ещё в древности.",
-                        voicePitch: 1.2, voiceRate: 1.05 } },
-                    { id:105, order:5, name: "Долина роз", shortName:"Розы", description:"🌹 Розарий в нижней части парка. Аромат и красота.", coordinates:{lat:43.9017,lng:42.7144}, radius_m:70, hint:"Недалеко от входа со стороны ул. Чайковского.", narzannik:{
-                        id:105, name:"Розалия", image:"images/rozalia.png", type:"Цветочный дух",
-                        greeting_text:"Вдохни аромат, и грусть уйдет.",
-                        ability_name:"Цветочный дар", ability_description:"Привлекает удачу в поисках.",
-                        story:"Долина роз — жемчужина Кисловодского парка. Здесь высажено более сотни сортов роз: от классических красных до экзотических чайных и плетистых. Аромат стоит такой, что кружится голова. Розы цветут с июня по октябрь, и каждый год их количество растёт. Говорят, если найти куст с пятью бутонами и загадать желание — оно исполнится к следующему цветению. А если сорвать лепесток и положить под подушку — приснится суженый.",
-                        secret: "Розы шепчут свои желания тем, кто умеет слушать. Прислушайся у куста с пятью бутонами.",
-                        age: "Розарию больше ста лет. Каждый год здесь высаживают новые сорта.",
-                        voicePitch: 1.25, voiceRate: 1.0 } }
-                ]},
-            kavkaz: {
-                name: "Легенды Кавказа (Ессентуки + Железноводск)",
-                points: [
-                    { id:201, order:1, name: "Ессентукский источник №4", shortName:"Источник №4", description:"💧 Знаменитая вода 'Ессентуки-4'. Питьевая галерея в стиле модерн.", coordinates:{lat:44.0458,lng:42.8612}, radius_m:70, hint:"Центр Ессентуков, Курортная зона.", narzannik:{
-                        id:201, name:"Мира", image:"images/mira.png", type:"Целительный дух",
-                        greeting_text:"Вода №4 лечит тело и душу. Пей на здоровье!",
-                        ability_name:"Целебный эликсир", ability_description:"Ускоряет выздоровление в игре.",
-                        story:"Ессентуки-4 — это не просто вода, а настоящий лечебный эликсир. Её состав уникален: соли, микроэлементы, природная углекислота. Пить её рекомендуют при болезнях желудка и обмена веществ. С 1901 года воду разливают в бутылки и отправляют по всей России. Источник №4 — самый известный. Питьевая галерея, построенная в стиле модерн, собирает тысячи людей со всей страны. Говорят, если пить эту воду каждый день в течение курса, можно забыть о болезнях на годы вперёд.",
-                        secret: "Один стакан этой воды на рассвете — и день пройдёт легко.",
-                        age: "Источник известен с XIX века. С 1901 года вода идёт на экспорт.",
-                        voicePitch: 1.15, voiceRate: 0.98 } },
-                    { id:202, order:2, name: "Верхние ванны Ессентуки", shortName:"Ванны", description:"🏛️ Историческое здание 1914 года. Лечебные процедуры.", coordinates:{lat:44.0442,lng:42.8595}, radius_m:60, hint:"Улица Ленина, около парка.", narzannik:{
-                        id:202, name:"Парик", image:"images/parik.png", type:"Водный дух",
-                        greeting_text:"Ванны дарят легкость телу.",
-                        ability_name:"Парение", ability_description:"Позволяет быстрее перемещаться.",
-                        story:"Верхние ванны в Ессентуках — одно из красивейших зданий курорта. Построены в 1914 году по проекту архитектора Шреттера. Раньше здесь принимали минеральные ванны представители знати и интеллигенции. Здание выполнено в стиле неоклассицизма, с колоннами и куполом. Внутри — мраморные лестницы и старинные чаши. Говорят, стены помнят шаги самого Шаляпина, который приезжал на воды лечить голос. Если приложить ладонь к стене в полдень, можно почувствовать тепло тех дней.",
-                        secret: "В старину считали: если в ванне прошептать желание — вода его запомнит.",
-                        age: "Зданию больше ста лет. Оно видело войну и восстановление.",
-                        voicePitch: 1.0, voiceRate: 0.95 } },
-                    { id:203, order:3, name: "Железноводск - гора Железная", shortName:"Гора Железная", description:"⛰️ Священная гора, источник магнитных вод. Отсюда открывается вид на город.", coordinates:{lat:44.1362,lng:43.0164}, radius_m:120, hint:"Подъем по канатной дороге или пешком.", narzannik:{
-                        id:203, name:"Металик", image:"images/metalic.png", type:"Железный дух",
-                        greeting_text:"Сила земли притягивает удачу!",
-                        ability_name:"Магнитное поле", ability_description:"Притягивает редких нарзанников.",
-                        story:"Гора Железная — сердце Железноводска. Её называют ещё Медовой или Развалкой. С вершины открывается вид на весь город и окрестности. Здесь бьют источники с уникальной железосодержащей водой — единственной в своём роде в России. По легенде, эта вода исцеляет от болезней крови и даёт силу воинам. В древности здесь жили племена, которые считали гору священной. Каждый, кто поднимется на вершину пешком, а не на канатке, получит особое благословение горы.",
-                        secret: "Если приложить ладонь к железистому камню — почувствуешь силу земли.",
-                        age: "Гора старше человечества. Ей миллионы лет.",
-                        voicePitch: 0.85, voiceRate: 0.9 } },
-                    { id:204, order:4, name: "Пушкинская галерея Железноводск", shortName:"Галерея", description:"🎨 Изящная стеклянная галерея. Концерты и выставки.", coordinates:{lat:44.1385,lng:43.0208}, radius_m:50, hint:"Курортный парк, рядом с озером.", narzannik:{
-                        id:204, name:"Люк", image:"images/luk.png", type:"Художественный дух",
-                        greeting_text:"Музыка и искусство вдохновляют!",
-                        ability_name:"Вдохновение", ability_description:"Повышает шанс найти редкую достопримечательность.",
-                        story:"Пушкинская галерея — одно из красивейших зданий Железноводска. Стеклянный купол, ажурные конструкции, лёгкость и воздушность — всё это делает её похожей на хрустальный дворец. Внутри проводят концерты, выставки, литературные вечера. Названа в честь Пушкина, который, по преданию, бывал на водах и черпал здесь вдохновение. Говорят, если сесть у окна галереи в дождливый день и просто слушать музыку — рождаются самые светлые мысли.",
-                        secret: "В галерее есть зал с особым эхом — там рождаются самые красивые мелодии.",
-                        age: "Галерею открыли в 1901 году. Ей больше века.",
-                        voicePitch: 1.1, voiceRate: 1.0 } },
-                    { id:205, order:5, name: "Озеро Карпово (Железноводск)", shortName:"Озеро", description:"🦢 Живописное озеро в центре курортного парка. Легенда о девушке Карповой.", coordinates:{lat:44.1405,lng:43.0241}, radius_m:60, hint:"Центральная аллея парка, рядом с лечебницей.", narzannik:{
-                        id:205, name:"Лукас", image:"images/lukas.png", type:"Водный дух",
-                        greeting_text:"Я хранительница озера. Моя красота исцеляет душу.",
-                        ability_name:"Зеркальная гладь", ability_description:"Показывает ближайшие точки на карте.",
-                        story:"Озеро Карпово — жемчужина Железноводского парка. Водная гладь отражает небо и горы, а по берегам цветут ивы. Название озеру дала легенда: жила здесь девушка по фамилии Карпова, которая полюбила офицера. Он уехал на войну и не вернулся. Девушка приходила на берег каждый день, ждала, а потом превратилась в белую лебедь. С тех пор лебеди живут на озере, и если они подплывут к тебе близко — жди добрых вестей. А если бросишь монетку и загадаешь желание — вернёшься сюда обязательно.",
-                        secret: "Брось монетку — и лебеди подскажут, вернёшься ли ты сюда снова.",
-                        age: "Озеро рукотворное, но легенде о нём уже больше века.",
-                        voicePitch: 1.2, voiceRate: 0.95 } }
-                ]}
-        };
+    // ==================== ДАННЫЕ МАРШРУТОВ ====================
+    const ROUTES = {
+        pyatigorsk: {
+            name: "Тропой Лермонтова (Пятигорск)",
+            points: [
+                { id: 1, order:1, name: "Пятигорский государственный университет", shortName:"ПГУ", description:"🎓 Современная точка притяжения знаний. Здесь оживают литературные традиции.", coordinates:{lat:44.045267,lng:43.061297}, radius_m:100, hint:"Улица Калинина, 9. Ищите главный корпус с колоннами.", narzannik:{ id:1, name:"Профессор Знаев", image:"images/professor.png", type:"Академический дух", greeting_text:"Я Профессор Знаев. Знания — ключ к тайнам Пятигорска!", ability_name:"Знание — сила", ability_description:"Открывает подсказки к следующей точке.", story:"Добро пожаловать в альма-матер, путник. Пятигорский государственный университет — один из старейших в регионе. Здесь изучают не только науки, но и историю родного края, литературу Кавказа. Именно в этих стенах бережно хранят наследие Лермонтова, Толстого и Пушкина.", secret: "В библиотеке есть редкие книги XIX века. Если попросишь — покажу.", age: "Университету больше восьмидесяти лет.", voicePitch: 1.05, voiceRate: 0.95 } },
+                { id: 2, order:2, name: "Грот Дианы", shortName:"Грот Дианы", description:"🏛️ Романтический грот 1829 года. Здесь Лермонтов вдохновлялся перед дуэлью.", coordinates:{lat:44.03581,lng:43.08177}, radius_m:50, hint:"Парк Цветник, у подножия Машука.", narzannik:{ id:2, name:"Гротик", image:"images/grotik.png", type:"Каменный дух", greeting_text:"Тсс, я слышу эхо бала 1841 года!", ability_name:"Каменная память", ability_description:"Находит старые надписи на камнях.", story:"Этот грот был вырублен в скале в 1829 году братьями Бернардацци. В июле 1841 года Лермонтов был здесь вместе с друзьями за несколько дней до гибели.", secret: "Есть поверье: обойди грот трижды по солнцу и загадай желание.", age: "Мне почти двести лет.", voicePitch: 0.85, voiceRate: 0.9 } },
+                { id: 3, order:3, name: "Академическая галерея", shortName:"Галерея", description:"💧 Первая питьевая галерея 1848 года.", coordinates:{lat:44.04004,lng:43.08811}, radius_m:50, hint:"Центр парка Цветник.", narzannik:{ id:3, name:"Елизавет", image:"images/elizavet.png", type:"Водный дух", greeting_text:"Испей нарзана — обретешь мудрость.", ability_name:"Аура источника", ability_description:"Увеличивает шанс найти редкого духа.", story:"В 1848 году здесь открылась первая питьевая галерея на Кавказских Минеральных Водах. Именно её описывал Лермонтов в «Герое нашего времени».", secret: "Вода из этого источника особенно полезна утром.", age: "Галерея открыта в 1848 году.", voicePitch: 1.2, voiceRate: 1.0 } },
+                { id: 4, order:4, name: "Грот Лермонтова", shortName:"Грот Л.", description:"🌫️ Любимое убежище поэта.", coordinates:{lat:44.04222,lng:43.08639}, radius_m:50, hint:"Восточная часть парка Цветник.", narzannik:{ id:4, name:"Калипсо", image:"images/kalipso.png", type:"Теневой дух", greeting_text:"Моя тень хранит секреты.", ability_name:"Теневой покров", ability_description:"Помогает скрываться.", story:"Это место Лермонтов любил больше всего. В романе «Герой нашего времени» именно здесь Печорин размышлял о судьбе.", secret: "Если войти в грот на закате, тень поэта появляется на стене.", age: "Мне столько же лет, сколько этой скале.", voicePitch: 0.95, voiceRate: 0.85 } },
+                { id: 5, order:5, name: "Эолова Арфа", shortName:"Арфа", description:"🎐 Павильон 1828 года.", coordinates:{lat:44.04500,lng:43.08972}, radius_m:50, hint:"Склон горы Горячей.", narzannik:{ id:5, name:"Эолик", image:"images/eolik.png", type:"Воздушный дух", greeting_text:"Прислушайся к ветру!", ability_name:"Голос ветра", ability_description:"Ускоряет поиск следующей точки.", story:"Эолова арфа построена в 1828 году. Внутри стояла настоящая арфа, звучавшая от ветра.", secret: "В ветреный день арфа издаёт семь разных нот.", age: "Мне скоро двести лет.", voicePitch: 1.15, voiceRate: 1.05 } },
+                { id: 6, order:6, name: "Провал", shortName:"Провал", description:"💎 Карстовое озеро с бирюзовой водой.", coordinates:{lat:44.04361,lng:43.09194}, radius_m:50, hint:"Восточный склон горы Машук.", narzannik:{ id:6, name:"Провалёныш", image:"images/provalenysh.png", type:"Легендарный дух", greeting_text:"Ты дошел до тайны гор!", ability_name:"Хранитель тайн", ability_description:"Открывает секретные места.", story:"Провал — карстовая воронка глубиной 20 метров с озером. В 1931 году описан Ильфом и Петровым.", secret: "В глубине озера есть второй ярус — подземная пещера.", age: "Провал образовался много тысяч лет назад.", voicePitch: 1.0, voiceRate: 0.92 } }
+            ]},
+        kislovodsk: {
+            name: "Нарзанная Симфония (Кисловодск)",
+            points: [
+                { id:101, order:1, name: "Кисловодский нарзанный бювет", shortName:"Нарзанный", description:"⛲ Главный источник нарзана.", coordinates:{lat:43.9053,lng:42.7168}, radius_m:80, hint:"Курортный бульвар.", narzannik:{ id:101, name:"Нарзан-батыр", image:"images/narzan.png", type:"Целитель", greeting_text:"Я Нарзан-батыр!", ability_name:"Сила источника", ability_description:"Восстанавливает энергию.", story:"Кисловодский нарзан известен с древности. Нарты пили эту воду и обретали силу.", secret: "Трижды набери воду на рассвете — сбудутся три желания.", age: "Источнику больше тысячи лет.", voicePitch: 0.9, voiceRate: 0.95 } },
+                { id:102, order:2, name: "Курортный парк", shortName:"Парк", description:"🌳 Один из крупнейших парков Европы.", coordinates:{lat:43.9088,lng:42.7211}, radius_m:100, hint:"Вход от нарзанной галереи.", narzannik:{ id:102, name:"Лиса", image:"images/lisa.png", type:"Природный дух", greeting_text:"Я хранитель этих деревьев.", ability_name:"Шепот листвы", ability_description:"Подсказывает путь.", story:"В этих аллеях гуляли Пушкин, Лермонтов, Толстой, Шаляпин.", secret: "В полночь слышно, как деревья шепчутся.", age: "Парку больше двухсот лет.", voicePitch: 1.1, voiceRate: 1.0 } },
+                { id:103, order:3, name: "Замок коварства и любви", shortName:"Замок", description:"🏰 Скальный останец.", coordinates:{lat:43.9115,lng:42.7279}, radius_m:60, hint:"Средняя часть парка.", narzannik:{ id:103, name:"Эхо", image:"images/eha.png", type:"Эховый дух", greeting_text:"Крикни — и услышишь ответ веков.", ability_name:"Эхо памяти", ability_description:"Вспоминает забытые легенды.", story:"Легенда гласит: князь заточил здесь девушку, а её возлюбленный погиб, пытаясь спасти.", secret: "Крикни своё имя у скалы — эхо ответит.", age: "Скале тысячи лет.", voicePitch: 0.9, voiceRate: 0.88 } },
+                { id:104, order:4, name: "Красное солнышко", shortName:"Солнышко", description:"☀️ Смотровая площадка.", coordinates:{lat:43.9152,lng:42.7314}, radius_m:50, hint:"Верхняя часть парка.", narzannik:{ id:104, name:"Светозар", image:"images/svetozar.png", type:"Солнечный дух", greeting_text:"Светозар приветствует тебя!", ability_name:"Солнечный луч", ability_description:"Освещает скрытые тропы.", story:"Отсюда видно Эльбрус и весь Кавказский хребет.", secret: "Первый луч солнца приносит удачу на весь день.", age: "Место священно с древности.", voicePitch: 1.2, voiceRate: 1.05 } },
+                { id:105, order:5, name: "Долина роз", shortName:"Розы", description:"🌹 Розарий.", coordinates:{lat:43.9017,lng:42.7144}, radius_m:70, hint:"Недалеко от входа со стороны ул. Чайковского.", narzannik:{ id:105, name:"Розалия", image:"images/rozalia.png", type:"Цветочный дух", greeting_text:"Вдохни аромат.", ability_name:"Цветочный дар", ability_description:"Привлекает удачу.", story:"Здесь более сотни сортов роз.", secret: "Найди куст с пятью бутонами — загадай желание.", age: "Розарию больше ста лет.", voicePitch: 1.25, voiceRate: 1.0 } }
+            ]},
+        kavkaz: {
+            name: "Легенды Кавказа (Ессентуки + Железноводск)",
+            points: [
+                { id:201, order:1, name: "Ессентукский источник №4", shortName:"Источник №4", description:"💧 Знаменитая вода 'Ессентуки-4'.", coordinates:{lat:44.0458,lng:42.8612}, radius_m:70, hint:"Центр Ессентуков.", narzannik:{ id:201, name:"Мира", image:"images/mira.png", type:"Целительный дух", greeting_text:"Вода №4 лечит тело и душу.", ability_name:"Целебный эликсир", ability_description:"Ускоряет выздоровление.", story:"Ессентуки-4 — лечебный эликсир с уникальным составом.", secret: "Один стакан воды на рассвете — день пройдёт легко.", age: "Источник известен с XIX века.", voicePitch: 1.15, voiceRate: 0.98 } },
+                { id:202, order:2, name: "Верхние ванны Ессентуки", shortName:"Ванны", description:"🏛️ Историческое здание 1914 года.", coordinates:{lat:44.0442,lng:42.8595}, radius_m:60, hint:"Улица Ленина.", narzannik:{ id:202, name:"Парик", image:"images/parik.png", type:"Водный дух", greeting_text:"Ванны дарят легкость.", ability_name:"Парение", ability_description:"Ускоряет перемещение.", story:"Построены в 1914 году архитектором Шреттером.", secret: "Прошепчи желание в ванне — вода его запомнит.", age: "Зданию больше ста лет.", voicePitch: 1.0, voiceRate: 0.95 } },
+                { id:203, order:3, name: "Железноводск - гора Железная", shortName:"Гора Железная", description:"⛰️ Священная гора.", coordinates:{lat:44.1362,lng:43.0164}, radius_m:120, hint:"Подъём по канатной дороге.", narzannik:{ id:203, name:"Металик", image:"images/metalic.png", type:"Железный дух", greeting_text:"Сила земли притягивает удачу!", ability_name:"Магнитное поле", ability_description:"Притягивает редких нарзанников.", story:"Здесь бьют источники с железосодержащей водой — единственной в России.", secret: "Приложи ладонь к железистому камню.", age: "Горе миллионы лет.", voicePitch: 0.85, voiceRate: 0.9 } },
+                { id:204, order:4, name: "Пушкинская галерея Железноводск", shortName:"Галерея", description:"🎨 Стеклянная галерея.", coordinates:{lat:44.1385,lng:43.0208}, radius_m:50, hint:"Курортный парк.", narzannik:{ id:204, name:"Люк", image:"images/luk.png", type:"Художественный дух", greeting_text:"Музыка вдохновляет!", ability_name:"Вдохновение", ability_description:"Повышает шанс найти редкое.", story:"Стеклянный купол делает её похожей на хрустальный дворец.", secret: "Зал с особым эхом рождает красивые мелодии.", age: "Галерею открыли в 1901 году.", voicePitch: 1.1, voiceRate: 1.0 } },
+                { id:205, order:5, name: "Озеро Карпово", shortName:"Озеро", description:"🦢 Живописное озеро.", coordinates:{lat:44.1405,lng:43.0241}, radius_m:60, hint:"Центральная аллея парка.", narzannik:{ id:205, name:"Лукас", image:"images/lukas.png", type:"Водный дух", greeting_text:"Я хранительница озера.", ability_name:"Зеркальная гладь", ability_description:"Показывает точки на карте.", story:"Название озеру дала легенда о девушке Карповой.", secret: "Брось монетку — лебеди подскажут, вернёшься ли снова.", age: "Легенде больше века.", voicePitch: 1.2, voiceRate: 0.95 } }
+            ]}
+    };
 
-        // ==================== ПЕРЕМЕННЫЕ ====================
-        let developerMode = false;
-        let userLocation = null;
-        let currentPoint = null;
-        let collectedNarzanniks = [];
-        let gameStartTime = null;
-        let currentRouteData = null;
-        let currentRouteId = null;
-        let cameraStream = null;
-        let cameraPermissionGranted = false;
-        let currentFacingMode = 'environment';
+    // ==================== ПЕРЕМЕННЫЕ ====================
+    let developerMode = false;
+    let userLocation = null;
+    let currentPoint = null;
+    let collectedNarzanniks = [];
+    let gameStartTime = null;
+    let currentRouteData = null;
+    let currentRouteId = null;
+    let cameraStream = null;
+    let cameraPermissionGranted = false;
+    let currentFacingMode = 'environment';
+    let cameraInitializing = false; // ← ЗАЩИТА от двойного запуска
 
-        // ==================== ПРЕДЗАГРУЗКА КАРТИНОК ====================
-        const _imageCache = new Set();
+    // ==================== ИНДИКАТОР AI ====================
+    function updateAIStatus(status, text) {
+        const el = document.getElementById('ai-status');
+        const textEl = document.getElementById('ai-status-text');
+        if (!el || !textEl) return;
+        el.classList.remove('ready', 'loading', 'error');
+        if (status) el.classList.add(status);
+        textEl.textContent = text;
+    }
 
-        function preloadImage(src) {
-            if (!src || _imageCache.has(src)) return;
-            _imageCache.add(src);
-            const img = new Image();
-            img.src = src;
+    // ==================== ПРЕДЗАГРУЗКА КАРТИНОК ====================
+    const _imageCache = new Set();
+    function preloadImage(src) {
+        if (!src || _imageCache.has(src)) return;
+        _imageCache.add(src);
+        const img = new Image();
+        img.src = src;
+    }
+    function preloadRouteImages(routeData) {
+        if (!routeData || !routeData.points) return;
+        console.log('🖼️ Предзагрузка картинок маршрута:', routeData.name);
+        routeData.points.forEach((point, i) => {
+            if (point.narzannik && point.narzannik.image) {
+                setTimeout(() => preloadImage(point.narzannik.image), i * 150);
+            }
+        });
+    }
+    function preloadNextPointImage() {
+        const next = getNextUncollectedPoint();
+        if (next && next.narzannik && next.narzannik.image) {
+            preloadImage(next.narzannik.image);
+        }
+    }
+
+    // ==================== ЛОКАЛЬНАЯ LLM (WebLLM) ====================
+    let llmEngine = null;
+    let llmReady = false;
+    let llmLoading = false;
+    let llmUnavailable = false;
+    const LLM_MODEL = "gemma-2-2b-it-q4f16_1-MLC";
+
+    async function initLLM() {
+        if (llmReady || llmLoading || llmUnavailable) return;
+        if (!('gpu' in navigator)) {
+            console.warn('❌ WebGPU не поддерживается');
+            llmUnavailable = true;
+            updateAIStatus('error', 'AI: нет WebGPU');
+            return;
+        }
+        if (!window.webllm) {
+            console.log('⏳ WebLLM не загружен');
+            llmUnavailable = true;
+            updateAIStatus('error', 'AI: CDN недоступен');
+            return;
         }
 
-        function preloadRouteImages(routeData) {
-            if (!routeData || !routeData.points) return;
-            console.log('🖼️ Предзагрузка картинок маршрута:', routeData.name);
-            routeData.points.forEach((point, i) => {
-                if (point.narzannik && point.narzannik.image) {
-                    setTimeout(() => preloadImage(point.narzannik.image), i * 150);
+        llmLoading = true;
+        updateAIStatus('loading', 'AI: 0%');
+        console.log('🧠 Загружаем модель:', LLM_MODEL);
+        try {
+            const { CreateMLCEngine } = window.webllm;
+            llmEngine = await CreateMLCEngine(LLM_MODEL, {
+                initProgressCallback: (report) => {
+                    const pct = Math.round(report.progress * 100);
+                    console.log(`📥 Загрузка: ${pct}%`);
+                    updateAIStatus('loading', `AI: ${pct}%`);
                 }
             });
+            llmReady = true;
+            llmLoading = false;
+            updateAIStatus('ready', 'AI: готов');
+            console.log('✅ LLM готова');
+        } catch (error) {
+            llmLoading = false;
+            llmUnavailable = true;
+            updateAIStatus('error', 'AI: ошибка');
+            console.error('❌ Ошибка LLM:', error);
         }
+    }
 
-        function preloadNextPointImage() {
-            const next = getNextUncollectedPoint();
-            if (next && next.narzannik && next.narzannik.image) {
-                preloadImage(next.narzannik.image);
-            }
-        }
-
-        // ==================== БАЗОВЫЕ ФУНКЦИИ ====================
-        function showScreen(screenId) {
-            document.querySelectorAll('.screen').forEach(screen => {
-                screen.classList.remove('active');
+    async function askLLM(userMessage, context = {}) {
+        if (!llmReady) return null;
+        const n = context.narzannik || {};
+        const sys = `Ты — ${n.name || 'нарзанник'}, ${n.type || 'дух места'}. Отвечай коротко (2-3 предложения) на русском, с кавказским колоритом.`;
+        try {
+            const reply = await llmEngine.chat.completions.create({
+                messages: [
+                    { role: 'system', content: sys },
+                    { role: 'user', content: userMessage }
+                ],
+                temperature: 0.8,
+                max_tokens: 150
             });
-            document.getElementById(screenId).classList.add('active');
-        }
-
-        function updateProgressBar() {
-            if (!currentRouteData) return;
-            const total = currentRouteData.points.length;
-            const collected = collectedNarzanniks.length;
-            const percent = (collected / total) * 100;
-            const fill = document.getElementById('progress-fill');
-            if (fill) fill.style.width = percent + '%';
-        }
-
-        function updateLocationStatus() {
-            const statusEl = document.getElementById('location-status');
-            if (statusEl && currentRouteData) {
-                statusEl.innerHTML = `📍 Маршрут: ${currentRouteData.name}<br>📊 Прогресс: ${collectedNarzanniks.length}/${currentRouteData.points.length} нарзанников`;
-                if (userLocation) {
-                    statusEl.innerHTML += `<br>📍 Ваши координаты: ${userLocation.lat.toFixed(5)}, ${userLocation.lng.toFixed(5)}`;
-                }
-            }
-            updateProgressBar();
-        }
-
-        function updateCurrentPointCard() {
-            const card = document.getElementById('current-point-card');
-            if (!currentPoint) {
-                card.classList.add('hidden');
-                return;
-            }
-
-            document.getElementById('point-name').textContent = currentPoint.name;
-            document.getElementById('point-description').textContent = currentPoint.description;
-            document.getElementById('point-coords').textContent = `📍 ${currentPoint.coordinates.lat}, ${currentPoint.coordinates.lng}`;
-
-            if (userLocation) {
-                const distance = calculateDistance(
-                    userLocation.lat, userLocation.lng,
-                    currentPoint.coordinates.lat, currentPoint.coordinates.lng
-                );
-                const distanceMeters = Math.round(distance * 1000);
-                const distanceEl = document.getElementById('point-distance-value');
-                const distanceStatus = document.getElementById('distance-status');
-
-                if (distanceEl) distanceEl.textContent = distanceMeters;
-
-                if (developerMode || distanceMeters <= currentPoint.radius_m) {
-                    distanceStatus.innerHTML = '✅ <span style="color: #10B981; font-weight: 700;">Вы рядом! Можно искать нарзанника.</span>';
-                } else {
-                    const needToGo = distanceMeters - currentPoint.radius_m;
-                    distanceStatus.innerHTML = `🚶 <span style="color: #F43F5E; font-weight: 700;">Нужно пройти ещё ${needToGo} метров</span>`;
-                }
-            } else {
-                document.getElementById('point-distance-value').textContent = '---';
-            }
-
-            document.getElementById('point-hint').innerHTML = `💡 <strong>Подсказка:</strong> ${currentPoint.hint}`;
-            card.classList.remove('hidden');
-        }
-
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
-        }
-
-        function requestGeolocation() {
-            if (!navigator.geolocation) {
-                userLocation = { lat: 44.03581, lng: 43.08177 };
-                updateLocationStatus();
-                checkNearestPoint();
-                return;
-            }
-
-            navigator.geolocation.getCurrentPosition(
-                function(position) {
-                    userLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
-                    updateLocationStatus();
-                    checkNearestPoint();
-                },
-                function(error) {
-                    userLocation = { lat: 44.03581, lng: 43.08177 };
-                    updateLocationStatus();
-                    checkNearestPoint();
-                }
-            );
-        }
-
-        function checkNearestPoint() {
-            if (!currentRouteData) return;
-
-            const sortedPoints = [...currentRouteData.points].sort((a, b) => a.order - b.order);
-            let nextPoint = null;
-
-            for (const point of sortedPoints) {
-                if (!collectedNarzanniks.includes(point.id)) {
-                    nextPoint = point;
-                    break;
-                }
-            }
-
-            if (!nextPoint) {
-                showVictoryScreen();
-                return;
-            }
-
-            currentPoint = nextPoint;
-
-            const bubble = document.getElementById('narzannik-speech-bubble');
-            if (bubble) bubble.classList.add('hidden');
-            const voiceHint = document.getElementById('voice-hint');
-            if (voiceHint) {
-                voiceHint.classList.remove('recognized');
-                voiceHint.textContent = 'Скажите: «Расскажи мне об этом месте»';
-            }
-            stopSpeaking();
-            preloadNextPointImage();
-
-            updateCurrentPointCard();
-            updateLocationStatus();
-        }
-
-        function updateCollection() {
-            localStorage.setItem('myphograd_collection_' + currentRouteId, JSON.stringify(collectedNarzanniks));
-            updateLocationStatus();
-            updateCurrentPointCard();
-        }
-
-        function toggleDeveloperMode() {
-            developerMode = !developerMode;
-            alert(developerMode ? '🔧 Режим разработчика ВКЛЮЧЕН\nТеперь можно фотографировать с любого расстояния!' : 'Режим разработчика выключен');
-            updateCurrentPointCard();
-        }
-
-        // ==================== КАМЕРА И AR ====================
-        async function initCamera() {
-            if (cameraStream && cameraStream.active) return true;
-
-            const video = document.getElementById('camera-preview');
-
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                alert('Ваш браузер не поддерживает камеру');
-                return false;
-            }
-
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: { ideal: currentFacingMode },
-                        width:  { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                });
-
-                cameraStream = stream;
-                video.srcObject = stream;
-                await video.play();
-                cameraPermissionGranted = true;
-                return true;
-            } catch (error) {
-                console.error('Ошибка камеры:', error);
-                alert('Не удалось получить доступ к камере: ' + error.message);
-                return false;
-            }
-        }
-
-        async function flipCamera() {
-            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
-            if (cameraStream) {
-                cameraStream.getTracks().forEach(t => t.stop());
-                cameraStream = null;
-            }
-            await initCamera();
-        }
-
-        async function openCameraWithAR() {
-            if (!currentPoint) {
-                alert('Сначала выберите точку (нажмите "Начать путешествие")');
-                return;
-            }
-
-            if (userLocation && !developerMode) {
-                const distance = calculateDistance(
-                    userLocation.lat, userLocation.lng,
-                    currentPoint.coordinates.lat, currentPoint.coordinates.lng
-                );
-                const distanceMeters = Math.round(distance * 1000);
-
-                if (distanceMeters > currentPoint.radius_m) {
-                    alert(`⚠️ Вы слишком далеко от ${currentPoint.name}!\nНужно подойти ближе (в радиусе ${currentPoint.radius_m} м)\nВаше расстояние: ${distanceMeters} м`);
-                    return;
-                }
-            }
-
-            const cameraContainer = document.getElementById('camera-container');
-            const arOverlay       = document.getElementById('ar-character-overlay');
-            const arInstruction   = document.getElementById('ar-instruction');
-
-            const cameraReady = await initCamera();
-            if (!cameraReady) return;
-
-            cameraContainer.classList.remove('hidden');
-
-            // Показываем индикатор загрузки
-            arOverlay.innerHTML = '<div class="ar-loading">✨</div>';
-            arOverlay.classList.remove('hidden');
-
-            const imgPath = currentPoint.narzannik.image;
-            const arImage = document.createElement('img');
-            arImage.alt = currentPoint.narzannik.name;
-
-            const showImage = () => {
-                arOverlay.innerHTML = `
-                    <div class="ar-hologram"></div>
-                    <div class="ar-glow"></div>
-                    <div class="ar-particles">
-                        <span></span><span></span><span></span>
-                        <span></span><span></span><span></span>
-                    </div>
-                    <div class="ar-scanlines"></div>
-                `;
-                arOverlay.appendChild(arImage);
-            };
-
-            arImage.onload = showImage;
-            arImage.onerror = () => {
-                arImage.onerror = null;
-                arImage.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Ccircle cx="50" cy="50" r="45" fill="%23ffd700"/%3E%3Ctext x="50" y="70" font-size="40" text-anchor="middle" fill="%23333"%3E📷%3C/text%3E%3C/svg%3E';
-            };
-            arImage.src = imgPath;
-
-            if (arImage.complete && arImage.naturalWidth) showImage();
-
-            if (arInstruction) {
-                arInstruction.innerHTML = `✨ Найди <strong>${currentPoint.narzannik.name}</strong> возле ${currentPoint.shortName}`;
-            }
-        }
-
-        function captureNarzannik() {
-            if (!currentPoint) {
-                alert('Точка не выбрана');
-                closeCamera();
-                return;
-            }
-
-            if (!collectedNarzanniks.includes(currentPoint.id)) {
-                collectedNarzanniks.push(currentPoint.id);
-                updateCollection();
-
-                const flash = document.getElementById('camera-flash');
-                if (flash) {
-                    flash.classList.remove('fire');
-                    void flash.offsetWidth;
-                    flash.classList.add('fire');
-                }
-
-                if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
-
-                setTimeout(() => {
-                    closeCamera();
-                    showNarzannik(currentPoint.narzannik);
-                    preloadNextPointImage();
-                }, 200);
-            } else {
-                alert(`✨ ${currentPoint.narzannik.name} уже в вашей коллекции! ✨`);
-                closeCamera();
-            }
-        }
-
-        function closeCamera() {
-            const container = document.getElementById('camera-container');
-            const overlay = document.getElementById('ar-character-overlay');
-
-            if (container) container.classList.add('hidden');
-            if (overlay) {
-                overlay.classList.add('hidden');
-                overlay.innerHTML = '';
-            }
-        }
-
-        function releaseCamera() {
-            if (cameraStream) {
-                cameraStream.getTracks().forEach(track => track.stop());
-                cameraStream = null;
-            }
-            cameraPermissionGranted = false;
-        }
-
-        function showNarzannik(narzannik) {
-            console.log('Показываем нарзанника:', narzannik);
-
-            const imgElement = document.getElementById('narzannik-image');
-            const emojiElement = document.getElementById('narzannik-emoji');
-
-            if (!narzannik) {
-                console.error('Нет данных о нарзаннике');
-                return;
-            }
-
-            emojiElement.style.display = 'none';
-
-            const imgPath = narzannik.image || '';
-            imgElement.onerror = function() {
-                this.onerror = null;
-                this.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Ccircle cx="50" cy="50" r="45" fill="%23ffd700"/%3E%3Ctext x="50" y="70" font-size="40" text-anchor="middle" fill="%23333"%3E📷%3C/text%3E%3C/svg%3E';
-            };
-            // Перезапуск анимации: сбрасываем src, потом ставим
-            imgElement.src = '';
-            imgElement.style.display = 'block';
-            // Небольшая задержка, чтобы браузер увидел смену src
-            requestAnimationFrame(() => {
-                imgElement.src = imgPath;
-            });
-
-            document.getElementById('narzannik-name').textContent = narzannik.name || 'Нарзанник';
-            document.getElementById('narzannik-greeting').textContent = narzannik.greeting_text || 'Приветствую тебя, путник!';
-            document.getElementById('narzannik-type').textContent = narzannik.type || 'Дух места';
-
-            const abilityText = (narzannik.ability_name || 'Особая сила') + ': ' + (narzannik.ability_description || 'Дарует удачу в пути');
-            document.getElementById('narzannik-ability').textContent = abilityText;
-
-            document.getElementById('narzannik-container').classList.remove('hidden');
-
-            const bubble = document.getElementById('narzannik-speech-bubble');
-            if (bubble) bubble.classList.add('hidden');
-        }
-
-        function goToNextPoint() {
-            document.getElementById('narzannik-container').classList.add('hidden');
-            stopSpeaking();
-            setTimeout(() => {
-                checkNearestPoint();
-            }, 500);
-        }
-
-        // ==================== ПОБЕДА ====================
-        function showVictoryScreen() {
-            if (!currentRouteData) return;
-            if (collectedNarzanniks.length < currentRouteData.points.length) return;
-
-            document.getElementById('victory-route-name').textContent = `Вы прошли маршрут "${currentRouteData.name}" и собрали всех нарзанников!`;
-
-            if (gameStartTime) {
-                const minutes = Math.floor((Date.now() - gameStartTime) / 60000);
-                document.getElementById('game-time').textContent = `${minutes} минут`;
-            }
-
-            const voiceCountEl = document.getElementById('voice-count');
-            if (voiceCountEl) voiceCountEl.textContent = voiceInteractionsCount;
-
-            const container = document.getElementById('victory-collection');
-            container.innerHTML = '';
-
-            currentRouteData.points.forEach(point => {
-                const isCollected = collectedNarzanniks.includes(point.id);
-                const item = document.createElement('div');
-                item.style.cssText = `
-                    width: 80px;
-                    height: 80px;
-                    border-radius: 12px;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    background: ${isCollected ? 'linear-gradient(135deg, rgba(251,191,36,0.4), rgba(236,72,153,0.3))' : 'rgba(255,255,255,0.5)'};
-                    border: 2px solid ${isCollected ? '#F59E0B' : 'rgba(139,92,246,0.2)'};
-                    padding: 5px;
-                `;
-
-                if (isCollected && point.narzannik.image) {
-                    item.innerHTML = `<img src="${point.narzannik.image}" style="width: 50px; height: 50px; object-fit: contain;"><div style="font-size: 10px; margin-top: 5px; color: #1a2b3c; font-weight: 700;">${point.shortName}</div>`;
-                } else {
-                    item.innerHTML = `<div style="font-size: 40px;">❓</div><div style="font-size: 10px; margin-top: 5px; color: #1a2b3c; font-weight: 700;">${point.shortName}</div>`;
-                }
-                container.appendChild(item);
-            });
-
-            releaseCamera();
-            stopSpeaking();
-            showScreen('screen-victory');
-        }
-
-        function startRoute(routeId) {
-            currentRouteId = routeId;
-            currentRouteData = ROUTES[routeId];
-            collectedNarzanniks = [];
-
-            const saved = localStorage.getItem('myphograd_collection_' + routeId);
-            if (saved) {
-                try {
-                    collectedNarzanniks = JSON.parse(saved);
-                } catch(e) {}
-            }
-
-            currentPoint = null;
-            gameStartTime = Date.now();
-            voiceInteractionsCount = 0;
-            showScreen('screen-game');
-            preloadRouteImages(currentRouteData);
-            requestGeolocation();
-        }
-
-        function restartGame() {
-            releaseCamera();
-            stopSpeaking();
-            currentRouteData = null;
-            currentRouteId = null;
-            collectedNarzanniks = [];
-            currentPoint = null;
-            userLocation = null;
-            showScreen('screen-welcome');
-        }
-
-        function clearProgress() {
-            if (confirm('Очистить весь сохраненный прогресс и вернуться в меню?')) {
-                localStorage.removeItem('myphograd_collection_pyatigorsk');
-                localStorage.removeItem('myphograd_collection_kislovodsk');
-                localStorage.removeItem('myphograd_collection_kavkaz');
-
-                collectedNarzanniks = [];
-                currentPoint = null;
-                currentRouteData = null;
-                currentRouteId = null;
-                userLocation = null;
-
-                releaseCamera();
-                stopSpeaking();
-                showScreen('screen-welcome');
-                alert('✅ Прогресс очищен!');
-            }
-        }
-
-        function shareResult() {
-            if (!currentRouteData) return;
-            const collected = collectedNarzanniks.length;
-            const total = currentRouteData.points.length;
-            const text = `Я прошел квест "${currentRouteData.name}" в МифоГраде и собрал ${collected}/${total} нарзанников! 🏆\n\nПопробуй и ты!`;
-
-            if (navigator.share) {
-                navigator.share({ title: 'Мой результат в МифоГраде', text: text });
-            } else if (navigator.clipboard) {
-                navigator.clipboard.writeText(text);
-                alert('✅ Результат скопирован в буфер обмена!');
-            } else {
-                alert(text);
-            }
-        }
-
-        // ==================== ГОЛОСОВОЙ ПОМОЩНИК ====================
-        const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const speechSupported  = !!SpeechRecognitionCtor;
-        const synthSupported   = 'speechSynthesis' in window;
-
-        let recognition        = null;
-        let isListening        = false;
-        let selectedVoice      = null;
-        let currentUtterance   = null;
-        let lastSpokenText     = '';
-        let voiceInteractionsCount = 0;
-        let lastUserPhrase     = '';
-
-        const VOICE_TRIGGERS = [
-            'расскажи', 'поведай', 'повествуй', 'что ты знаешь',
-            'интересное', 'история', 'историю', 'легенд',
-            'о месте', 'об этом', 'посвяти', 'просвети'
-        ];
-
-        function loadRussianVoice() {
-            if (!synthSupported) return;
-            const voices = speechSynthesis.getVoices();
-            selectedVoice =
-                voices.find(v => v.lang === 'ru-RU' && /google|milena|alena|premium/i.test(v.name)) ||
-                voices.find(v => v.lang === 'ru-RU') ||
-                voices.find(v => v.lang && v.lang.startsWith('ru')) ||
-                null;
-        }
-
-        if (synthSupported) {
-            loadRussianVoice();
-            speechSynthesis.onvoiceschanged = loadRussianVoice;
-        }
-
-        function speakText(text, opts = {}) {
-            lastSpokenText = text;
-
-            if (!synthSupported) { console.warn('TTS не поддерживается'); return; }
-
-            stopSpeaking();
-
-            const utt = new SpeechSynthesisUtterance(text);
-            utt.lang   = 'ru-RU';
-            utt.rate   = opts.rate   ?? 0.95;
-            utt.pitch  = opts.pitch  ?? 1.0;
-            utt.volume = 1.0;
-            if (selectedVoice) utt.voice = selectedVoice;
-
-            utt.onstart = () => setSpeakingUI(true);
-            utt.onend   = () => setSpeakingUI(false);
-            utt.onerror = () => setSpeakingUI(false);
-
-            currentUtterance = utt;
-            speechSynthesis.speak(utt);
-            if (navigator.vibrate) navigator.vibrate(20);
-        }
-
-        function stopSpeaking() {
-            if (synthSupported) speechSynthesis.cancel();
-            setSpeakingUI(false);
-        }
-
-        function setSpeakingUI(isSpeaking) {
-            const bubble = document.getElementById('narzannik-speech-bubble');
-            const card   = document.querySelector('.narzannik-card');
-            if (bubble) bubble.classList.toggle('speaking', isSpeaking);
-            if (card)   card.classList.toggle('speaking', isSpeaking);
-        }
-
-        function getNextUncollectedPoint() {
-            if (!currentRouteData) return null;
-            const sorted = [...currentRouteData.points].sort((a, b) => a.order - b.order);
-            for (const p of sorted) {
-                if (!collectedNarzanniks.includes(p.id)) return p;
-            }
+            return reply.choices[0].message.content.trim();
+        } catch (e) {
+            console.error('❌ LLM error:', e);
             return null;
         }
+    }
 
-        function startListening() {
-            if (!speechSupported) {
-                alert('Голосовой ввод не поддерживается браузером.\nОткройте сайт в Chrome, Edge или Safari.');
-                return;
+    // ==================== БАЗОВЫЕ ФУНКЦИИ ====================
+    function showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+        // Скрываем индикатор AI на экране победы
+        const aiStatus = document.getElementById('ai-status');
+        if (aiStatus) {
+            if (screenId === 'screen-victory') aiStatus.classList.add('hidden');
+            else aiStatus.classList.remove('hidden');
+        }
+    }
+
+    function updateProgressBar() {
+        if (!currentRouteData) return;
+        const percent = (collectedNarzanniks.length / currentRouteData.points.length) * 100;
+        const fill = document.getElementById('progress-fill');
+        if (fill) fill.style.width = percent + '%';
+    }
+
+    function updateLocationStatus() {
+        const statusEl = document.getElementById('location-status');
+        if (statusEl && currentRouteData) {
+            statusEl.innerHTML = `📍 Маршрут: ${currentRouteData.name}<br>📊 Прогресс: ${collectedNarzanniks.length}/${currentRouteData.points.length} нарзанников`;
+            if (userLocation) statusEl.innerHTML += `<br>📍 Координаты: ${userLocation.lat.toFixed(5)}, ${userLocation.lng.toFixed(5)}`;
+        }
+        updateProgressBar();
+    }
+
+    function updateCurrentPointCard() {
+        const card = document.getElementById('current-point-card');
+        if (!currentPoint) { card.classList.add('hidden'); return; }
+        document.getElementById('point-name').textContent = currentPoint.name;
+        document.getElementById('point-description').textContent = currentPoint.description;
+        document.getElementById('point-coords').textContent = `📍 ${currentPoint.coordinates.lat}, ${currentPoint.coordinates.lng}`;
+        if (userLocation) {
+            const dist = Math.round(calculateDistance(userLocation.lat, userLocation.lng, currentPoint.coordinates.lat, currentPoint.coordinates.lng) * 1000);
+            document.getElementById('point-distance-value').textContent = dist;
+            const ds = document.getElementById('distance-status');
+            if (developerMode || dist <= currentPoint.radius_m) {
+                ds.innerHTML = '✅ <span style="color: #10B981; font-weight: 700;">Вы рядом!</span>';
+            } else {
+                ds.innerHTML = `🚶 <span style="color: #F43F5E; font-weight: 700;">Пройти ещё ${dist - currentPoint.radius_m} м</span>`;
             }
-            if (isListening) { stopListening(); return; }
+        } else {
+            document.getElementById('point-distance-value').textContent = '---';
+        }
+        document.getElementById('point-hint').innerHTML = `💡 <strong>Подсказка:</strong> ${currentPoint.hint}`;
+        card.classList.remove('hidden');
+    }
 
-            stopSpeaking();
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
 
-            recognition = new SpeechRecognitionCtor();
-            recognition.lang           = 'ru-RU';
-            recognition.continuous     = false;
-            recognition.interimResults = true;
-            recognition.maxAlternatives = 3;
+    function requestGeolocation() {
+        if (!navigator.geolocation) {
+            userLocation = { lat: 44.03581, lng: 43.08177 };
+            updateLocationStatus(); checkNearestPoint(); return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            p => { userLocation = { lat: p.coords.latitude, lng: p.coords.longitude }; updateLocationStatus(); checkNearestPoint(); },
+            e => { userLocation = { lat: 44.03581, lng: 43.08177 }; updateLocationStatus(); checkNearestPoint(); }
+        );
+    }
 
-            recognition.onstart = () => {
-                isListening = true;
-                updateVoiceUI('listening');
-                if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
-            };
+    function checkNearestPoint() {
+        if (!currentRouteData) return;
+        const sorted = [...currentRouteData.points].sort((a, b) => a.order - b.order);
+        let nextPoint = null;
+        for (const p of sorted) { if (!collectedNarzanniks.includes(p.id)) { nextPoint = p; break; } }
+        if (!nextPoint) { showVictoryScreen(); return; }
+        currentPoint = nextPoint;
+        const bubble = document.getElementById('narzannik-speech-bubble');
+        if (bubble) bubble.classList.add('hidden');
+        const vh = document.getElementById('voice-hint');
+        if (vh) { vh.classList.remove('recognized'); vh.textContent = 'Скажите: «Расскажи мне об этом месте»'; }
+        stopSpeaking();
+        preloadNextPointImage();
+        updateCurrentPointCard();
+        updateLocationStatus();
+    }
 
-            recognition.onresult = (event) => {
-                let interim = '', final = '';
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const t = event.results[i][0].transcript;
-                    if (event.results[i].isFinal) final += t;
-                    else                           interim += t;
-                }
-                const hintEl = document.getElementById('voice-hint');
-                if (hintEl) {
-                    hintEl.textContent = '«' + (final || interim).trim() + '»';
-                    hintEl.classList.add('recognized');
-                }
-                if (final.trim()) handleVoiceInput(final.trim());
-            };
+    function updateCollection() {
+        localStorage.setItem('myphograd_collection_' + currentRouteId, JSON.stringify(collectedNarzanniks));
+        updateLocationStatus(); updateCurrentPointCard();
+    }
 
-            recognition.onerror = (e) => {
-                isListening = false;
-                updateVoiceUI('idle');
-                if (e.error === 'not-allowed') {
-                    alert('Разрешите доступ к микрофону в настройках браузера.');
-                } else if (e.error === 'no-speech') {
-                    const hintEl = document.getElementById('voice-hint');
-                    if (hintEl) {
-                        hintEl.textContent = 'Не расслышал… Попробуйте ещё раз';
-                        hintEl.classList.remove('recognized');
-                    }
-                }
-            };
+    function toggleDeveloperMode() {
+        developerMode = !developerMode;
+        alert(developerMode ? '🔧 Режим разработчика ВКЛЮЧЕН' : 'Режим разработчика выключен');
+        updateCurrentPointCard();
+    }
 
-            recognition.onend = () => {
-                isListening = false;
-                updateVoiceUI('idle');
-            };
+    // ==================== КАМЕРА (ИСПРАВЛЕНА) ====================
+    async function initCamera() {
+        if (cameraStream && cameraStream.active) return true;
+        
+        // ⚡ ЗАЩИТА: не запускаем дважды одновременно
+        if (cameraInitializing) {
+            console.log('⏳ Камера уже инициализируется...');
+            return false;
+        }
+        cameraInitializing = true;
 
-            try { recognition.start(); }
-            catch (err) { console.error('Recognition start error:', err); }
+        const video = document.getElementById('camera-preview');
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert('Ваш браузер не поддерживает камеру');
+            cameraInitializing = false;
+            return false;
         }
 
-        function stopListening() {
-            if (recognition && isListening) {
-                try { recognition.stop(); } catch (e) {}
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: currentFacingMode }, width: { ideal: 1280 }, height: { ideal: 720 } }
+            });
+            cameraStream = stream;
+            video.srcObject = stream;
+
+            // ⚡ ЗАЩИТА от AbortError: retry через 150 мс
+            try {
+                await video.play();
+            } catch (playErr) {
+                if (playErr.name === 'AbortError') {
+                    console.warn('⚠️ AbortError, повторяю play()...');
+                    await new Promise(r => setTimeout(r, 150));
+                    await video.play();
+                } else {
+                    throw playErr;
+                }
             }
+
+            cameraPermissionGranted = true;
+            cameraInitializing = false;
+            return true;
+        } catch (error) {
+            console.error('Ошибка камеры:', error);
+            cameraInitializing = false;
+            // Не показываем alert на AbortError — это не критично
+            if (error.name !== 'AbortError') {
+                alert('Не удалось запустить камеру: ' + error.message);
+            }
+            return false;
+        }
+    }
+
+    async function flipCamera() {
+        currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+        if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+        await initCamera();
+    }
+
+    async function openCameraWithAR() {
+        if (!currentPoint) { alert('Сначала выберите точку'); return; }
+        if (userLocation && !developerMode) {
+            const dist = Math.round(calculateDistance(userLocation.lat, userLocation.lng, currentPoint.coordinates.lat, currentPoint.coordinates.lng) * 1000);
+            if (dist > currentPoint.radius_m) { alert(`⚠️ Слишком далеко от ${currentPoint.name}`); return; }
+        }
+        const cameraContainer = document.getElementById('camera-container');
+        const arOverlay = document.getElementById('ar-character-overlay');
+        const arInstruction = document.getElementById('ar-instruction');
+        const cameraReady = await initCamera();
+        if (!cameraReady) return;
+        cameraContainer.classList.remove('hidden');
+        arOverlay.innerHTML = '<div class="ar-loading">✨</div>';
+        arOverlay.classList.remove('hidden');
+
+        const imgPath = currentPoint.narzannik.image;
+        const arImage = document.createElement('img');
+        arImage.alt = currentPoint.narzannik.name;
+        const showImage = () => {
+            arOverlay.innerHTML = `<div class="ar-hologram"></div><div class="ar-glow"></div><div class="ar-scanlines"></div>`;
+            arOverlay.appendChild(arImage);
+        };
+        arImage.onload = showImage;
+        arImage.onerror = () => { arImage.onerror = null; arImage.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Ccircle cx="50" cy="50" r="45" fill="%23ffd700"/%3E%3Ctext x="50" y="70" font-size="40" text-anchor="middle" fill="%23333"%3E📷%3C/text%3E%3C/svg%3E'; };
+        arImage.src = imgPath;
+        if (arImage.complete && arImage.naturalWidth) showImage();
+        if (arInstruction) arInstruction.innerHTML = `✨ Найди <strong>${currentPoint.narzannik.name}</strong>`;
+    }
+
+    function captureNarzannik() {
+        if (!currentPoint) { alert('Точка не выбрана'); closeCamera(); return; }
+        if (!collectedNarzanniks.includes(currentPoint.id)) {
+            collectedNarzanniks.push(currentPoint.id);
+            updateCollection();
+            const flash = document.getElementById('camera-flash');
+            if (flash) { flash.classList.remove('fire'); void flash.offsetWidth; flash.classList.add('fire'); }
+            if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+            setTimeout(() => { closeCamera(); showNarzannik(currentPoint.narzannik); preloadNextPointImage(); }, 200);
+        } else {
+            alert(`✨ ${currentPoint.narzannik.name} уже в коллекции!`); closeCamera();
+        }
+    }
+
+    function closeCamera() {
+        const c = document.getElementById('camera-container');
+        const o = document.getElementById('ar-character-overlay');
+        if (c) c.classList.add('hidden');
+        if (o) { o.classList.add('hidden'); o.innerHTML = ''; }
+    }
+
+    function releaseCamera() {
+        if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+        cameraPermissionGranted = false;
+        cameraInitializing = false;
+    }
+
+    function showNarzannik(narzannik) {
+        const imgElement = document.getElementById('narzannik-image');
+        const emojiElement = document.getElementById('narzannik-emoji');
+        if (!narzannik) return;
+        emojiElement.style.display = 'none';
+        const imgPath = narzannik.image || '';
+        imgElement.onerror = function() { this.onerror = null; this.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Ccircle cx="50" cy="50" r="45" fill="%23ffd700"/%3E%3Ctext x="50" y="70" font-size="40" text-anchor="middle" fill="%23333"%3E📷%3C/text%3E%3C/svg%3E'; };
+        imgElement.src = ''; imgElement.style.display = 'block';
+        requestAnimationFrame(() => { imgElement.src = imgPath; });
+        document.getElementById('narzannik-name').textContent = narzannik.name || 'Нарзанник';
+        document.getElementById('narzannik-greeting').textContent = narzannik.greeting_text || 'Приветствую!';
+        document.getElementById('narzannik-type').textContent = narzannik.type || 'Дух места';
+        document.getElementById('narzannik-ability').textContent = (narzannik.ability_name || 'Особая сила') + ': ' + (narzannik.ability_description || '');
+        document.getElementById('narzannik-container').classList.remove('hidden');
+        const bubble = document.getElementById('narzannik-speech-bubble');
+        if (bubble) bubble.classList.add('hidden');
+    }
+
+    function goToNextPoint() {
+        document.getElementById('narzannik-container').classList.add('hidden');
+        stopSpeaking();
+        setTimeout(() => checkNearestPoint(), 500);
+    }
+
+    // ==================== ПОБЕДА ====================
+    function showVictoryScreen() {
+        if (!currentRouteData || collectedNarzanniks.length < currentRouteData.points.length) return;
+        document.getElementById('victory-route-name').textContent = `Вы прошли "${currentRouteData.name}"!`;
+        if (gameStartTime) {
+            const min = Math.floor((Date.now() - gameStartTime) / 60000);
+            document.getElementById('game-time').textContent = `${min} минут`;
+        }
+        document.getElementById('voice-count').textContent = voiceInteractionsCount;
+        const container = document.getElementById('victory-collection');
+        container.innerHTML = '';
+        currentRouteData.points.forEach(p => {
+            const isCollected = collectedNarzanniks.includes(p.id);
+            const item = document.createElement('div');
+            item.style.cssText = `width: 80px; height: 80px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: ${isCollected ? 'linear-gradient(135deg, rgba(251,191,36,0.4), rgba(236,72,153,0.3))' : 'rgba(255,255,255,0.5)'}; border: 2px solid ${isCollected ? '#F59E0B' : 'rgba(139,92,246,0.2)'}; padding: 5px;`;
+            item.innerHTML = isCollected && p.narzannik.image
+                ? `<img src="${p.narzannik.image}" style="width: 50px; height: 50px; object-fit: contain;"><div style="font-size: 10px; margin-top: 5px;">${p.shortName}</div>`
+                : `<div style="font-size: 40px;">❓</div><div style="font-size: 10px; margin-top: 5px;">${p.shortName}</div>`;
+            container.appendChild(item);
+        });
+        releaseCamera(); stopSpeaking(); showScreen('screen-victory');
+    }
+
+    function startRoute(routeId) {
+        currentRouteId = routeId;
+        currentRouteData = ROUTES[routeId];
+        collectedNarzanniks = [];
+        const saved = localStorage.getItem('myphograd_collection_' + routeId);
+        if (saved) { try { collectedNarzanniks = JSON.parse(saved); } catch(e) {} }
+        currentPoint = null;
+        gameStartTime = Date.now();
+        voiceInteractionsCount = 0;
+        showScreen('screen-game');
+        preloadRouteImages(currentRouteData);
+        requestGeolocation();
+        setTimeout(() => initLLM(), 2000);
+    }
+
+    function restartGame() {
+        releaseCamera(); stopSpeaking();
+        currentRouteData = null; currentRouteId = null;
+        collectedNarzanniks = []; currentPoint = null; userLocation = null;
+        showScreen('screen-welcome');
+    }
+
+    function clearProgress() {
+        if (confirm('Очистить весь прогресс?')) {
+            ['pyatigorsk','kislovodsk','kavkaz'].forEach(r => localStorage.removeItem('myphograd_collection_' + r));
+            collectedNarzanniks = []; currentPoint = null; currentRouteData = null; currentRouteId = null; userLocation = null;
+            releaseCamera(); stopSpeaking(); showScreen('screen-welcome');
+            alert('✅ Прогресс очищен!');
+        }
+    }
+
+    function shareResult() {
+        if (!currentRouteData) return;
+        const text = `Я прошёл "${currentRouteData.name}" в МифоГраде и собрал ${collectedNarzanniks.length}/${currentRouteData.points.length} нарзанников! 🏆`;
+        if (navigator.share) navigator.share({ title: 'Мой результат', text });
+        else if (navigator.clipboard) { navigator.clipboard.writeText(text); alert('✅ Скопировано!'); }
+        else alert(text);
+    }
+
+    // ==================== ГОЛОСОВОЙ ПОМОЩНИК ====================
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const speechSupported = !!SpeechRecognitionCtor;
+    const synthSupported = 'speechSynthesis' in window;
+
+    let recognition = null;
+    let isListening = false;
+    let selectedVoice = null;
+    let currentUtterance = null;
+    let lastSpokenText = '';
+    let voiceInteractionsCount = 0;
+
+    function loadRussianVoice() {
+        if (!synthSupported) return;
+        const voices = speechSynthesis.getVoices();
+        selectedVoice = voices.find(v => v.lang === 'ru-RU' && /google|milena|alena/i.test(v.name))
+                     || voices.find(v => v.lang === 'ru-RU')
+                     || voices.find(v => v.lang && v.lang.startsWith('ru'))
+                     || null;
+    }
+    if (synthSupported) { loadRussianVoice(); speechSynthesis.onvoiceschanged = loadRussianVoice; }
+
+    function speakText(text, opts = {}) {
+        lastSpokenText = text;
+        if (!synthSupported) return;
+        stopSpeaking();
+        const utt = new SpeechSynthesisUtterance(text);
+        utt.lang = 'ru-RU';
+        utt.rate = opts.rate ?? 0.95;
+        utt.pitch = opts.pitch ?? 1.0;
+        utt.volume = 1.0;
+        if (selectedVoice) utt.voice = selectedVoice;
+        utt.onstart = () => setSpeakingUI(true);
+        utt.onend = () => setSpeakingUI(false);
+        utt.onerror = () => setSpeakingUI(false);
+        currentUtterance = utt;
+        speechSynthesis.speak(utt);
+        if (navigator.vibrate) navigator.vibrate(20);
+    }
+
+    function stopSpeaking() { if (synthSupported) speechSynthesis.cancel(); setSpeakingUI(false); }
+
+    function setSpeakingUI(isSpeaking) {
+        const bubble = document.getElementById('narzannik-speech-bubble');
+        const card = document.querySelector('.narzannik-card');
+        if (bubble) bubble.classList.toggle('speaking', isSpeaking);
+        if (card) card.classList.toggle('speaking', isSpeaking);
+    }
+
+    function getNextUncollectedPoint() {
+        if (!currentRouteData) return null;
+        const sorted = [...currentRouteData.points].sort((a, b) => a.order - b.order);
+        for (const p of sorted) { if (!collectedNarzanniks.includes(p.id)) return p; }
+        return null;
+    }
+
+    function startListening() {
+        if (!speechSupported) { alert('Голосовой ввод не поддерживается'); return; }
+        if (isListening) { stopListening(); return; }
+        stopSpeaking();
+        recognition = new SpeechRecognitionCtor();
+        recognition.lang = 'ru-RU';
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 3;
+
+        recognition.onstart = () => {
+            isListening = true;
+            updateVoiceUI('listening');
+            if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+        };
+
+        // ⚠️ ИСПРАВЛЕННЫЙ onresult — с защитой от undefined
+        recognition.onresult = (event) => {
+            let interim = '', final = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const result = event.results[i];
+                if (!result || !result[0]) continue;   // ЗАЩИТА
+                const t = result[0].transcript;
+                if (!t) continue;                       // ЗАЩИТА
+                if (result.isFinal) final += t;
+                else interim += t;
+            }
+            const hintEl = document.getElementById('voice-hint');
+            if (hintEl) {
+                hintEl.textContent = '«' + (final || interim).trim() + '»';
+                hintEl.classList.add('recognized');
+            }
+            if (final.trim()) {
+                handleVoiceInput(final.trim()).catch(err => console.error(err));
+            }
+        };
+
+        recognition.onerror = (e) => {
             isListening = false;
             updateVoiceUI('idle');
+            if (e.error === 'not-allowed') alert('Разрешите доступ к микрофону');
+        };
+
+        recognition.onend = () => {
+            isListening = false;
+            updateVoiceUI('idle');
+        };
+
+        try { recognition.start(); } catch (err) { console.error(err); }
+    }
+
+    function stopListening() {
+        if (recognition && isListening) { try { recognition.stop(); } catch(e) {} }
+        isListening = false;
+        updateVoiceUI('idle');
+    }
+
+    function updateVoiceUI(state) {
+        const btn = document.getElementById('btn-voice');
+        const hint = document.getElementById('voice-hint');
+        const helper = document.getElementById('voice-helper');
+        if (!btn) return;
+        if (state === 'listening') {
+            btn.classList.add('listening'); btn.textContent = '🔴';
+            if (helper) helper.classList.add('is-listening');
+            if (hint) { hint.textContent = '🎧 Слушаю…'; hint.classList.remove('recognized'); }
+        } else {
+            btn.classList.remove('listening'); btn.textContent = '🎤';
+            if (helper) helper.classList.remove('is-listening');
+            if (hint && !hint.classList.contains('recognized')) hint.textContent = 'Скажите: «Расскажи мне об этом месте»';
         }
+    }
 
-        function updateVoiceUI(state) {
-            const btn    = document.getElementById('btn-voice');
-            const hint   = document.getElementById('voice-hint');
-            const helper = document.getElementById('voice-helper');
-            if (!btn) return;
+    async function handleVoiceInput(text) {
+        const lower = text.toLowerCase().trim();
+        console.log('🎙️ Распознано:', lower);
+        voiceInteractionsCount++;
+        if (!currentPoint) { speakText('Сначала выберите точку'); return; }
+        const n = currentPoint.narzannik;
 
-            if (state === 'listening') {
-                btn.classList.add('listening');
-                btn.textContent = '🔴';
-                if (helper) helper.classList.add('is-listening');
-                if (hint) {
-                    hint.textContent = '🎧 Слушаю…';
-                    hint.classList.remove('recognized');
-                }
-            } else {
-                btn.classList.remove('listening');
-                btn.textContent = '🎤';
-                if (helper) helper.classList.remove('is-listening');
-                if (hint && !hint.classList.contains('recognized')) {
-                    hint.textContent = 'Скажите: «Расскажи мне об этом месте»';
-                }
-            }
+        // Быстрые интенты
+        if (/(расскаж|поведай|истори[юя]|легенд|о месте|об этом)/.test(lower)) { tellStory(n); return; }
+        if (/(стоп|остановись|тихо|замолчи|хватит)/.test(lower)) { stopSpeaking(); return; }
+        if (/(повтори|ещё раз|снова)/.test(lower)) { if (lastSpokenText) speakText(lastSpokenText, { pitch: n.voicePitch, rate: n.voiceRate }); return; }
+        if (/(куда (идти|дальше)|где следующая|дальше|пойдём)/.test(lower)) {
+            const np = getNextUncollectedPoint();
+            if (np && userLocation) {
+                const d = Math.round(calculateDistance(userLocation.lat, userLocation.lng, np.coordinates.lat, np.coordinates.lng) * 1000);
+                speakText(`Иди к «${np.name}». ${np.hint} Расстояние ~${d} метров.`);
+            } else if (np) speakText(`Следующая — «${np.name}». ${np.hint}`);
+            else speakText('Все нарзанники собраны!');
+            return;
         }
+        if (/(подскажи|подсказка|где находится)/.test(lower)) { speakText(`Подсказка: ${currentPoint.hint}`); return; }
+        if (/(секрет|тайна|поверье)/.test(lower)) { speakText(n.secret || 'Есть поверье...'); return; }
+        if (/(сколько лет|возраст)/.test(lower)) { speakText(n.age || 'Я существую очень давно.'); return; }
+        if (/(спасибо|благодарю)/.test(lower)) { speakText('Рад помочь, путник!'); return; }
+        if (/(пока|прощай|до встречи)/.test(lower)) { speakText('До встречи!'); return; }
 
-        function handleVoiceInput(text) {
-            const lower = text.toLowerCase().trim();
-            console.log('🎙️ Распознано:', lower);
-            voiceInteractionsCount++;
-            lastUserPhrase = lower;
-
-            if (!currentPoint) {
-                speakText('Сначала выберите маршрут и точку, путник.');
+        // AI
+        if (llmReady) {
+            const reply = await askLLM(lower, { narzannik: n, pointName: currentPoint.name });
+            if (reply) {
+                showSpeechBubble(reply);
+                speakText(reply, { pitch: n.voicePitch, rate: n.voiceRate });
                 return;
-            }
-
-            const n = currentPoint.narzannik;
-
-            if (/(расскаж|поведай|повествуй|истори[юя]|легенд|что.*знаешь|о месте|об этом|посвяти|просвети|интересн)/.test(lower)) {
-                tellStory(n); return;
-            }
-            if (/(привет|здравствуй|хай|салют|добрый (день|вечер|утро)|доброе утро)/.test(lower)) {
-                speakText(`Приветствую, путник! Я — ${n.name}, ${n.type.toLowerCase()}. Спроси меня об этом месте — расскажу его тайны.`,
-                          { pitch: n.voicePitch, rate: n.voiceRate }); return;
-            }
-            if (/(как дела|как ты|как жизнь|как настроение)/.test(lower)) {
-                const moods = ['Отлично! Вековая мудрость не даёт скучать.','Прекрасно! Солнце над Машуком — что ещё нужно?','Хорошо, путник. Рад гостям.','Всё спокойно, как вода в нарзане.'];
-                speakText(moods[Math.floor(Math.random() * moods.length)], { pitch: n.voicePitch, rate: n.voiceRate }); return;
-            }
-            if (/(кто ты|как (тебя )?зовут|твоё имя|твое имя|представься)/.test(lower)) {
-                speakText(`Я — ${n.name}, ${n.type.toLowerCase()}, хранитель этого места. Моя способность — ${n.ability_name}: ${n.ability_description}`,
-                          { pitch: n.voicePitch, rate: n.voiceRate }); return;
-            }
-            if (/(что ты умеешь|помощь|команды|что можно|подскажи команды)/.test(lower)) {
-                speakText('Ты можешь спросить меня: расскажи о месте, кто ты, куда идти, какая погода, расскажи секрет, повтори, стоп, спасибо. Слушаю тебя.'); return;
-            }
-            if (/(куда (идти|дальше)|где следующая|следующая точка|дальше|вперёд|вперед|пойдём|идём)/.test(lower)) {
-                const nextP = getNextUncollectedPoint();
-                if (nextP && userLocation) {
-                    const dist = Math.round(calculateDistance(userLocation.lat, userLocation.lng, nextP.coordinates.lat, nextP.coordinates.lng) * 1000);
-                    speakText(`Иди к точке «${nextP.name}». ${nextP.hint} Расстояние примерно ${dist} метров.`);
-                } else if (nextP) {
-                    speakText(`Следующая точка — «${nextP.name}». ${nextP.hint}`);
-                } else {
-                    speakText('Ты собрал всех нарзанников этого маршрута! Поздравляю.');
-                }
-                return;
-            }
-            if (/(перейти|перейди|к следующей|закончить|завершить)/.test(lower)) {
-                speakText('Хорошо, идём дальше!');
-                setTimeout(goToNextPoint, 1600); return;
-            }
-            if (/(подскажи|подсказка|где находится|где это|как найти)/.test(lower)) {
-                speakText(`Подсказка: ${currentPoint.hint}`); return;
-            }
-            if (/(сколько (идти|метров|осталось)|далеко|близко)/.test(lower)) {
-                if (userLocation) {
-                    const dist = Math.round(calculateDistance(userLocation.lat, userLocation.lng, currentPoint.coordinates.lat, currentPoint.coordinates.lng) * 1000);
-                    if (dist <= currentPoint.radius_m) speakText('Ты уже рядом! Можешь искать меня.');
-                    else speakText(`Осталось примерно ${dist - currentPoint.radius_m} метров.`);
-                } else speakText('Не могу определить расстояние — включи геолокацию.');
-                return;
-            }
-            if (/(погода|погоду|холодно|жарко|дождь|солнце)/.test(lower)) {
-                const weather = ['Кавказские Минеральные Воды — край солнца и ветров. Свежо и бодряще.','Воздух пропитан нарзаном и ароматом трав.','Погода здесь переменчива, как судьба поэта.','Дышится легко — как в стихах Лермонтова.'];
-                speakText(weather[Math.floor(Math.random() * weather.length)]); return;
-            }
-            if (/(о (пятигорске|кисловодске|ессентуках|железноводске|городе|курорте|кмв)|про город)/.test(lower)) {
-                speakText('Кавказские Минеральные Воды — жемчужина России. Пятигорск — город пяти вершин, Кисловодск — нарзанная столица, Ессентуки — целебные воды, Железноводск — город у железной горы. Все они соединены историей и минеральными источниками.'); return;
-            }
-            if (/(лермонтов|поэт|михаил юрьевич)/.test(lower)) {
-                speakText('Михаил Юрьевич Лермонтов любил эти места. Здесь он написал последние стихи, здесь погиб на дуэли в июле 1841 года. Каждый камень Пятигорска помнит его шаги.'); return;
-            }
-            if (/(секрет|тайна|тайну|загадк|что-то скрываешь|поверье)/.test(lower)) {
-                speakText(n.secret || 'Есть поверье: приложи руку к камню и загадай желание — оно исполнится.',
-                          { pitch: n.voicePitch - 0.1, rate: n.voiceRate - 0.1 }); return;
-            }
-            if (/(сколько (лет|тебе|веков)|возраст|когда построен|когда основан)/.test(lower)) {
-                speakText(n.age || 'Я существую столько, сколько стоит это место. А оно стоит здесь очень давно.'); return;
-            }
-            if (/(кто (построил|создал|основал)|архитектор)/.test(lower)) {
-                speakText('Многие здешние строения возвели братья Бернардацци — итальянские архитекторы, которые служили на Кавказе в XIX веке. Они построили почти весь старый Пятигорск.'); return;
-            }
-            if (/(мне (грустно|скучно|плохо)|я устал|не хочу)/.test(lower)) {
-                speakText('Не печалься, путник. Взгляни на горы — они стоят веками. И ты справишься.',
-                          { pitch: n.voicePitch, rate: n.voiceRate }); return;
-            }
-            if (/(я тебя люблю|ты классный|ты крут|ты молодец|ты лучший)/.test(lower)) {
-                speakText('Спасибо, путник! Твоё доброе слово — лучший нарзан для духа.',
-                          { pitch: n.voicePitch, rate: n.voiceRate }); return;
-            }
-            if (/(дурак|глупый|плохой|скучный)/.test(lower)) {
-                speakText('Ох, путник, не гневи духов! Обидишь — потеряешь путь.'); return;
-            }
-            if (/(спасибо|благодарю|кланяюсь)/.test(lower)) {
-                const thanks = ['Рад помочь! Пусть дорога ведёт к новым тайнам.','На здоровье, путник! Нарзан да душа — что ещё нужно?','Всегда рад. Иди, тебя ждут другие духи.'];
-                speakText(thanks[Math.floor(Math.random() * thanks.length)]); return;
-            }
-            if (/(пока|до свидания|прощай|до встречи|бай)/.test(lower)) {
-                speakText('До встречи, путник! Возвращайся — я всегда здесь.'); return;
-            }
-            if (/(повтори|ещё раз|еще раз|снова|не расслышал)/.test(lower)) {
-                if (lastSpokenText) speakText(lastSpokenText, { pitch: n.voicePitch, rate: n.voiceRate });
-                else speakText('Мне нечего повторить. Спроси меня о чём-нибудь.');
-                return;
-            }
-            if (/(стоп|остановись|тихо|замолчи|хватит)/.test(lower)) { stopSpeaking(); return; }
-            if (/(громче|быстрее|медленнее|тише говори|помедленнее|побыстрее)/.test(lower)) {
-                if (lastSpokenText) {
-                    const rate = /быстрее/.test(lower) ? 1.3 : /медленнее/.test(lower) || /помедленнее/.test(lower) ? 0.7 : 1.0;
-                    speakText(lastSpokenText, { rate });
-                }
-                return;
-            }
-            if (/(который час|сколько времени|время)/.test(lower)) {
-                const now = new Date();
-                speakText(`Сейчас ${now.getHours()} часов ${now.getMinutes()} минут.`); return;
-            }
-            if (/(что за маршрут|какой маршрут|куда мы идём|сколько точек)/.test(lower)) {
-                if (currentRouteData) speakText(`Ты идёшь по маршруту «${currentRouteData.name}». Всего в нём ${currentRouteData.points.length} точек. Ты уже собрал ${collectedNarzanniks.length}.`);
-                return;
-            }
-            if (/(мой прогресс|сколько собрал|сколько осталось)/.test(lower)) {
-                if (currentRouteData) {
-                    const left = currentRouteData.points.length - collectedNarzanniks.length;
-                    speakText(`Ты собрал ${collectedNarzanniks.length} из ${currentRouteData.points.length} нарзанников. Осталось ещё ${left}.`);
-                }
-                return;
-            }
-            speakText('Я тебя не понял. Скажи: расскажи о месте, куда идти, или что ты умеешь.');
-        }
-
-        function tellStory(narzannik) {
-            const text = narzannik.story || narzannik.greeting_text;
-            showSpeechBubble(text);
-            speakText(text, { pitch: narzannik.voicePitch ?? 1.05, rate: narzannik.voiceRate ?? 0.95 });
-            if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
-        }
-
-        function showSpeechBubble(text) {
-            let bubble = document.getElementById('narzannik-speech-bubble');
-            if (!bubble) {
-                bubble = document.createElement('div');
-                bubble.id = 'narzannik-speech-bubble';
-                bubble.className = 'narzannik-speech-bubble';
-                const host = document.getElementById('current-point-card') || document.querySelector('.narzannik-card');
-                if (host) host.appendChild(bubble);
-            }
-            if (bubble) {
-                bubble.textContent = text;
-                bubble.classList.remove('hidden');
             }
         }
+        speakText('Я не понял. Спроси о месте или скажи «куда идти».');
+    }
 
-        function initVoiceUI() {
-            const micBtn = document.getElementById('btn-voice');
-            if (micBtn) {
-                micBtn.addEventListener('click', () => {
-                    if (isListening) stopListening();
-                    else             startListening();
-                });
-            }
-            const repeatBtn = document.getElementById('btn-repeat-story');
-            if (repeatBtn) {
-                repeatBtn.addEventListener('click', () => {
-                    if (!currentPoint) return;
-                    tellStory(currentPoint.narzannik);
-                });
-            }
-            const stopBtn = document.getElementById('btn-stop-speech');
-            if (stopBtn) stopBtn.addEventListener('click', stopSpeaking);
+    function tellStory(n) {
+        const text = n.story || n.greeting_text;
+        showSpeechBubble(text);
+        speakText(text, { pitch: n.voicePitch ?? 1.05, rate: n.voiceRate ?? 0.95 });
+        if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
+    }
 
-            document.querySelectorAll('.voice-example-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const phrase = btn.dataset.phrase;
-                    if (phrase) handleVoiceInput(phrase);
-                });
+    function showSpeechBubble(text) {
+        let bubble = document.getElementById('narzannik-speech-bubble');
+        if (!bubble) {
+            bubble = document.createElement('div');
+            bubble.id = 'narzannik-speech-bubble';
+            bubble.className = 'narzannik-speech-bubble';
+            const host = document.getElementById('current-point-card') || document.querySelector('.narzannik-card');
+            if (host) host.appendChild(bubble);
+        }
+        if (bubble) { bubble.textContent = text; bubble.classList.remove('hidden'); }
+    }
+
+    function initVoiceUI() {
+        const micBtn = document.getElementById('btn-voice');
+        if (micBtn) micBtn.addEventListener('click', () => { if (isListening) stopListening(); else startListening(); });
+        const repeatBtn = document.getElementById('btn-repeat-story');
+        if (repeatBtn) repeatBtn.addEventListener('click', () => { if (currentPoint) tellStory(currentPoint.narzannik); });
+        const stopBtn = document.getElementById('btn-stop-speech');
+        if (stopBtn) stopBtn.addEventListener('click', stopSpeaking);
+        document.querySelectorAll('.voice-example-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const p = btn.dataset.phrase;
+                if (p) handleVoiceInput(p).catch(e => console.error(e));
             });
-
-            console.log('🎙️ Голосовой помощник готов. Интентов: 26. Поддержка:',
-                'распознавание —', speechSupported ? '✅' : '❌',
-                '| синтез —', synthSupported ? '✅' : '❌');
-        }
-
-        // ==================== ИНИЦИАЛИЗАЦИЯ ====================
-        document.addEventListener('DOMContentLoaded', function() {
-            let selectedRoute = 'pyatigorsk';
-
-            document.querySelectorAll('.route-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    document.querySelectorAll('.route-btn').forEach(b => b.classList.remove('selected'));
-                    this.classList.add('selected');
-                    selectedRoute = this.dataset.route;
-                });
-            });
-            document.querySelector('.route-btn').classList.add('selected');
-
-            document.getElementById('btn-start-route').addEventListener('click', function() {
-                startRoute(selectedRoute);
-            });
-
-            document.getElementById('btn-main-ar').addEventListener('click', openCameraWithAR);
-            document.getElementById('btn-take-photo').addEventListener('click', captureNarzannik);
-            document.getElementById('btn-cancel').addEventListener('click', closeCamera);
-            document.getElementById('btn-continue').addEventListener('click', goToNextPoint);
-
-            const flipBtn = document.getElementById('btn-flip');
-            if (flipBtn) flipBtn.addEventListener('click', flipCamera);
-
-            initVoiceUI();
         });
+        console.log('🎙️ Голосовой помощник готов');
+    }
 
-        window.clearProgress = clearProgress;
-        window.toggleDeveloperMode = toggleDeveloperMode;
-        window.restartGame = restartGame;
-        window.shareResult = shareResult;
-    </script>
+    // ==================== ИНИЦИАЛИЗАЦИЯ ====================
+    document.addEventListener('DOMContentLoaded', () => {
+        let selectedRoute = 'pyatigorsk';
+        document.querySelectorAll('.route-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.route-btn').forEach(b => b.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedRoute = this.dataset.route;
+            });
+        });
+        document.querySelector('.route-btn').classList.add('selected');
+        document.getElementById('btn-start-route').addEventListener('click', () => startRoute(selectedRoute));
+        document.getElementById('btn-main-ar').addEventListener('click', openCameraWithAR);
+        document.getElementById('btn-take-photo').addEventListener('click', captureNarzannik);
+        document.getElementById('btn-cancel').addEventListener('click', closeCamera);
+        document.getElementById('btn-continue').addEventListener('click', goToNextPoint);
+        const flipBtn = document.getElementById('btn-flip');
+        if (flipBtn) flipBtn.addEventListener('click', flipCamera);
+        initVoiceUI();
+    });
+
+    window.clearProgress = clearProgress;
+    window.toggleDeveloperMode = toggleDeveloperMode;
+    window.restartGame = restartGame;
+    window.shareResult = shareResult;
+</script>
 </body>
 </html>
